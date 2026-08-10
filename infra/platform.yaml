@@ -1,0 +1,194 @@
+apiVersion: agentcore/v1
+kind: Platform
+
+metadata:
+  name: agent-core
+  description: >-
+    Shared resources every agent runtime and the web console depend on.
+    Account-agnostic by design: no account IDs, ARNs or absolute paths appear
+    here. Anything of the form ${...} is resolved by the provisioner.
+
+spec:
+  region: us-east-1
+
+  # ---------------------------------------------------------------------------
+  # Prerequisites the provisioner should assert BEFORE provisioning, because
+  # they fail at invoke time rather than at apply time - which is expensive to
+  # debug (a runtime deploys green, then every call 500s).
+  # ---------------------------------------------------------------------------
+  prerequisites:
+    - name: anthropic-use-case-form
+      description: >-
+        Anthropic models on Bedrock require a one-time per-account use case
+        submission. Until it is accepted, EVERY Anthropic model ID returns
+        ResourceNotFoundException while Amazon models keep working - so a
+        partially-working pipeline is the signature of this being missing.
+      appliesTo:
+        - coverage
+        - orchestrator
+      check: bedrock:GetUseCaseForModelAccess
+      remediate: bedrock:PutUseCaseForModelAccess
+      inheritedFromOrgManagementAccount: true
+
+    - name: model-availability
+      description: Each distinct model id must be invokable in this region before deploy.
+      check: bedrock-runtime:Converse
+      models:
+        - us.amazon.nova-pro-v1:0
+        - us.anthropic.claude-sonnet-4-6
+
+  # ---------------------------------------------------------------------------
+  # Container images
+  # ---------------------------------------------------------------------------
+  containerRegistry:
+    agentRepositoryPattern: bedrock-agentcore-${agent_name}
+    controlPlaneRepository: agent-core-control-plane
+    # Pin deployments by digest, not by a moving tag.
+    imageTagPolicy:
+      releaseTagPattern: v${n}       # immutable per release
+      floatingTags: [latest]         # convenience only - never deploy from these
+      pinBy: digest
+
+  build:
+    type: remote                     # no local Docker required
+    sourceBucketPattern: bedrock-agentcore-codebuild-sources-${account_id}-${region}
+    agentProjectPattern: bedrock-agentcore-${agent_name}-builder
+    controlPlaneProject:
+      name: agent-core-control-plane-builder
+      computeType: SMALL
+      image: standard:7.0
+      privileged: true               # required to run docker build
+      buildspec: buildspec.yml
+      sourceKey: control-plane/source.zip
+      environment:
+        ECR_URI: ${ecr.controlPlaneRepositoryUri}
+        IMAGE_TAG: ${release_tag}
+      # Windows note: build the source zip with forward-slash archive names.
+      # Compress-Archive writes backslashes, which Linux CodeBuild reads as flat
+      # filenames and the Dockerfile COPY then fails.
+      archiveNamePathSeparator: forward-slash
+
+  # ---------------------------------------------------------------------------
+  # IAM - described by purpose; the provisioner owns naming and trust policies
+  # ---------------------------------------------------------------------------
+  iam:
+    roles:
+      - name: agent-runtime-execution
+        perAgent: true
+        trustedService: bedrock-agentcore
+        permissions:
+          - bedrock:InvokeModel
+          - bedrock:InvokeModelWithResponseStream
+          - bedrock:ListInferenceProfiles     # required by the Claude Agent SDK CLI
+          - bedrock:GetInferenceProfile
+          - bedrock:ListFoundationModels
+          - bedrock-agentcore:*Memory*
+          - logs:*                            # OTEL/observability export
+          - ecr:GetAuthorizationToken
+        # Additional InvokeAgentRuntime grants are derived from each agent's
+        # spec.dependencies - do not hand-maintain them here.
+
+      - name: agent-build-execution
+        perAgent: true
+        trustedService: codebuild
+        permissions: [logs:*, ecr:*, s3:GetObject]
+
+      - name: control-plane-build
+        trustedService: codebuild
+        permissions:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          - ecr:GetAuthorizationToken
+          - ecr:PutImage
+          - ecr:InitiateLayerUpload
+          - ecr:UploadLayerPart
+          - ecr:CompleteLayerUpload
+          - ecr:BatchCheckLayerAvailability
+          - ecr:BatchGetImage
+          - ecr:GetDownloadUrlForLayer
+          - s3:GetObject
+
+      - name: console-instance
+        trustedService: apprunner-tasks
+        permissions:
+          - bedrock-agentcore:InvokeAgentRuntime   # scoped to the 4 runtimes
+          - secretsmanager:GetSecretValue          # scoped to secrets below
+          - logs:FilterLogEvents
+          - logs:GetLogEvents
+          - logs:DescribeLogStreams
+          - logs:DescribeLogGroups
+
+      - name: console-ecr-access
+        trustedService: apprunner-build
+        managedPolicies: [AppRunnerServicePolicyForECRAccess]
+
+  # ---------------------------------------------------------------------------
+  # Secrets - values are never stored here, only their identity
+  # ---------------------------------------------------------------------------
+  secrets:
+    - name: agent-core/console-password
+      description: HTTP Basic Auth password for the web console.
+      consumedBy: [web-console]
+      injectAs: BASIC_AUTH_PASS
+
+  # ---------------------------------------------------------------------------
+  # AgentCore Gateway (MCP). None provisioned yet - declared so agents can
+  # reference gateways by name from spec.tools.gateways without schema changes.
+  # ---------------------------------------------------------------------------
+  gateways: []
+  # - name: claims-tools
+  #   protocol: MCP
+  #   targets: []
+  #   inbound: {type: IAM}
+  #   outbound: {credentialProvider: null}
+
+  credentialProviders: []
+  # - name: partner-api
+  #   type: api_key | oauth2
+  #   secret: agent-core/partner-api-key
+
+  # ---------------------------------------------------------------------------
+  # Front-end service
+  # ---------------------------------------------------------------------------
+  services:
+    - name: web-console
+      kind: container-service          # AWS App Runner
+      image:
+        repository: agent-core-control-plane
+        tag: ${release_tag}
+      port: 8080
+      cpu: 1024
+      memory: 2048
+      autoDeploy: false                # deploys are explicit tag switches
+      instanceRole: console-instance
+      accessRole: console-ecr-access
+      healthCheck:
+        protocol: HTTP
+        path: /healthz                 # must stay unauthenticated
+        intervalSeconds: 10
+        timeoutSeconds: 5
+        healthyThreshold: 1
+        unhealthyThreshold: 5
+      auth:
+        type: basic
+        usernameEnv: BASIC_AUTH_USER
+        passwordSecret: agent-core/console-password
+      env:
+        AWS_REGION: ${region}
+        PORT: "8080"
+      # Resolved from the deployed runtimes - keeps ARNs out of the manifest.
+      agentBindings:
+        - agent: intake
+          injectAs: INTAKE_ARN
+        - agent: coverage
+          injectAs: COVERAGE_ARN
+        - agent: risk
+          injectAs: RISK_ARN
+        - agent: orchestrator
+          injectAs: ORCH_CLAUDE_ARN
+
+  observability:
+    tracing: otel
+    destination: cloudwatch
+    dashboard: gen-ai-observability

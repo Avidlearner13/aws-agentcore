@@ -1,0 +1,83 @@
+apiVersion: agentcore/v1
+kind: AgentRuntime
+
+metadata:
+  name: orchestrator
+  displayName: Claude SDK Supervisor
+  description: >-
+    Phase-2 supervisor. Calls Intake, then Coverage and Risk, cross-runtime via
+    InvokeAgentRuntime, then synthesises the final adjudication decision.
+  labels:
+    phase: "2"
+    role: supervisor
+
+spec:
+  source:
+    framework: claude-agent-sdk
+    language: python
+    entrypoint: app.py
+    build:
+      type: container
+      context: agents/orchestrator-claude
+      dockerfile: Dockerfile
+      requirements: requirements.txt
+      platform: linux/arm64
+      remote_build: true
+
+  model:
+    id: us.anthropic.claude-sonnet-4-6
+    overrideEnvVar: CLAUDE_MODEL
+    provider:
+      type: bedrock
+      requiresInferenceProfileDiscovery: true
+
+  runtime:
+    protocol: HTTP
+    networkMode: PUBLIC
+    observability:
+      enabled: true
+    lifecycle:
+      # The full pipeline is a long call (~60s observed). Raise if specialists grow.
+      idleSessionTimeoutSeconds: null
+      maxLifetimeSeconds: null
+
+  memory:
+    enabled: true
+    name: orchestrator_mem
+    mode: STM_ONLY
+    eventExpiryDays: 30
+
+  identity:
+    inbound:
+      type: IAM
+      jwt:
+        enabled: false
+        audiences: []
+        issuerUrl: null
+        signingAlgorithm: ES384
+        durationSeconds: 300
+    outbound:
+      credentialProviders: []
+
+  tools:
+    mcpServers: []
+    gateways: []
+
+  # The provisioner resolves each dependency to the target runtime's ARN, injects
+  # it under injectAs, AND grants bedrock-agentcore:InvokeAgentRuntime on that ARN
+  # (plus /*) to this agent's execution role. Declaring the edge here is what keeps
+  # ARNs out of the manifest entirely.
+  dependencies:
+    - agent: intake
+      injectAs: INTAKE_ARN
+      grant: invoke
+    - agent: coverage
+      injectAs: COVERAGE_ARN
+      grant: invoke
+    - agent: risk
+      injectAs: RISK_ARN
+      grant: invoke
+
+  data: []
+
+  env: {}

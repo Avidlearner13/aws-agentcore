@@ -1,0 +1,66 @@
+apiVersion: agentcore/v1
+kind: AgentRuntime
+
+metadata:
+  name: intake
+  displayName: Intake & Document Intelligence
+  description: >-
+    Parses a raw FNOL narrative plus policy text into a structured claim_record
+    (claimant, loss, peril category, line items, totals).
+  labels:
+    phase: "1"
+    role: intake
+
+spec:
+  source:
+    framework: gcp-adk            # informational: which agent framework the code uses
+    language: python
+    entrypoint: app.py            # relative to build.context - never an absolute path
+    build:
+      type: container             # container | direct_code_deploy
+      context: agents/gcp-adk     # repo-relative
+      dockerfile: Dockerfile
+      requirements: requirements.txt
+      platform: linux/arm64       # AgentCore runtime requires arm64
+      remote_build: true          # build off-host (no local Docker required)
+
+  model:
+    id: us.amazon.nova-pro-v1:0
+    overrideEnvVar: CLAUDE_MODEL  # env var the code reads to override the default
+
+  runtime:
+    protocol: HTTP                # HTTP | MCP | A2A | AGUI
+    networkMode: PUBLIC           # PUBLIC | VPC
+    observability:
+      enabled: true               # OTEL -> CloudWatch, provisioned by the platform
+    lifecycle:
+      idleSessionTimeoutSeconds: null   # null = service default (900)
+      maxLifetimeSeconds: null          # null = service default (28800)
+
+  memory:
+    enabled: true
+    name: intake_mem
+    mode: STM_ONLY                # STM_ONLY | STM_AND_LTM
+    eventExpiryDays: 30
+
+  identity:
+    inbound:
+      type: IAM                   # IAM | JWT | OAUTH - who may invoke this runtime
+      jwt:
+        enabled: false
+        audiences: []
+        issuerUrl: null
+        signingAlgorithm: ES384
+        durationSeconds: 300
+    outbound:
+      credentialProviders: []     # named providers this agent may use for egress auth
+
+  tools:
+    mcpServers: []                # outbound MCP servers this agent may call
+    gateways: []                  # AgentCore Gateway targets exposing tools over MCP
+
+  dependencies: []                # other agents this one invokes
+
+  data: []                        # datasets/KBs mounted into the image
+
+  env: {}                         # extra plain env vars (no secrets - see platform.secrets)

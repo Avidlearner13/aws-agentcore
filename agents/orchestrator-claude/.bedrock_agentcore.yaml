@@ -30,13 +30,13 @@ agents:
         idle_runtime_session_timeout: null
         max_lifetime: null
     bedrock_agentcore:
-      agent_id: null
-      agent_arn: null
+      agent_id: orchestrator-XFYcgz9zG9
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:183025108443:runtime/orchestrator-XFYcgz9zG9
       agent_session_id: null
     codebuild:
-      project_name: null
-      execution_role: null
-      source_bucket: null
+      project_name: bedrock-agentcore-orchestrator-builder
+      execution_role: arn:aws:iam::183025108443:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-11376b7e2a
+      source_bucket: bedrock-agentcore-codebuild-sources-183025108443-us-east-1
     memory:
       mode: STM_ONLY
       memory_id: orchestrator_mem-NKPpRuFOm0

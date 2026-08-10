@@ -27,7 +27,7 @@ set "PORT=8770"
 
 echo Resolving AgentCore runtime ARNs...
 for %%N in (intake coverage risk orchestrator) do (
-  for /f "usebackq delims=" %%A in (`"%AWS%" bedrock-agentcore-control list-agent-runtimes --region %REGION% --profile %PROFILE% --query "agentRuntimes[?agentRuntimeName=='%%N'].agentRuntimeArn | [0]" --output text 2^>nul`) do (
+  for /f "usebackq delims=" %%A in (`aws bedrock-agentcore-control list-agent-runtimes --region %REGION% --profile %PROFILE% --query "agentRuntimes[?agentRuntimeName=='%%N'].agentRuntimeArn | [0]" --output text 2^>nul`) do (
     if /I "%%N"=="intake"       set "INTAKE_ARN=%%A"
     if /I "%%N"=="coverage"     set "COVERAGE_ARN=%%A"
     if /I "%%N"=="risk"         set "RISK_ARN=%%A"

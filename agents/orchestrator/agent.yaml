@@ -15,10 +15,10 @@ spec:
   source:
     framework: claude-agent-sdk
     language: python
-    entrypoint: app.py
+    entrypoint: main.py
     build:
       type: container
-      context: agents/orchestrator-claude
+      context: agents/orchestrator
       dockerfile: Dockerfile
       requirements: requirements.txt
       platform: linux/arm64

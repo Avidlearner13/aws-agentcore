@@ -1,0 +1,53 @@
+apiVersion: a2a/v1
+kind: AgentCard
+
+name: coverage
+displayName: Coverage & Adjudication
+description: >-
+  Decides whether a structured claim is covered by a policy, and what is payable
+  after exclusions, limits and the deductible.
+version: "1.0.0"
+protocolVersion: "0.2"
+
+provider:
+  organization: agent-core
+  framework: claude-agent-sdk
+
+interface:
+  transport: bedrock-agentcore
+  protocol: HTTP
+  path: /invocations
+
+capabilities:
+  streaming: false
+  pushNotifications: false
+  stateTransitionHistory: false
+
+defaultInputModes: [application/json]
+defaultOutputModes: [application/json]
+
+security:
+  - scheme: aws-iam
+    description: Caller must hold bedrock-agentcore:InvokeAgentRuntime on this runtime.
+
+skills:
+  - id: determine-coverage
+    name: Determine coverage and eligible payout
+    description: >-
+      Matches each line item against the policy: coverage status, applicable
+      coverages and limits, triggered exclusions, deductible application, and the
+      eligible amount. Cites the policy language it relied on.
+    tags: [adjudication, insurance, coverage, policy-interpretation]
+    input:
+      claim_record: {type: object, required: true, description: Output of the intake agent.}
+      policy_text: {type: string, required: true}
+      model: {type: string, required: false}
+    output:
+      framework: {type: string}
+      model: {type: string}
+      result:
+        type: object
+        description: coverage_status, applicable_coverages, exclusions, deductible, eligible_amount.
+      raw: {type: string}
+    examples:
+      - "Water damage from an internal plumbing failure under an HO-3 policy."

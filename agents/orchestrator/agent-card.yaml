@@ -1,0 +1,70 @@
+apiVersion: a2a/v1
+kind: AgentCard
+
+name: orchestrator
+displayName: Claude SDK Supervisor
+description: >-
+  End-to-end claims adjudication. Runs intake, then coverage and risk, and
+  synthesises a single decision with a recommended payout.
+version: "1.0.0"
+protocolVersion: "0.2"
+
+provider:
+  organization: agent-core
+  framework: claude-agent-sdk
+
+interface:
+  transport: bedrock-agentcore
+  protocol: HTTP
+  path: /invocations
+
+capabilities:
+  streaming: false
+  pushNotifications: false
+  stateTransitionHistory: false
+  # Calls other agents cross-runtime. The edges are declared in agent.yaml
+  # (spec.dependencies) and become both env vars and IAM grants.
+  delegatesTo: [intake, coverage, risk]
+
+defaultInputModes: [application/json]
+defaultOutputModes: [application/json]
+
+security:
+  - scheme: aws-iam
+    description: Caller must hold bedrock-agentcore:InvokeAgentRuntime on this runtime.
+
+skills:
+  - id: adjudicate-claim
+    name: Adjudicate a claim end to end
+    description: >-
+      Full pipeline from raw FNOL to decision. Returns the decision, recommended
+      payout, whether human approval is required, a summary, and a per-step trace
+      showing which specialist ran on which framework and how long it took.
+      A non-zero payout always sets approval_required - disbursement is gated.
+    tags: [orchestration, adjudication, insurance, multi-agent]
+    input:
+      fnol_text: {type: string, required: true}
+      policy_text: {type: string, required: false}
+      model: {type: string, required: false}
+    output:
+      framework: {type: string}
+      model: {type: string}
+      result:
+        type: object
+        description: decision, recommended_payout, approval_required, summary, steps[].
+      meta:
+        type: object
+        description: timing, cost, and the raw specialist_outputs for audit.
+
+  - id: synthesize-only
+    name: Synthesise from existing specialist findings
+    description: >-
+      Skips the specialist calls and decides from a claim_record, coverage and risk
+      that the caller already holds. Used when replaying or testing.
+    tags: [orchestration, synthesis]
+    input:
+      claim_record: {type: object, required: true}
+      coverage: {type: object, required: false}
+      risk: {type: object, required: false}
+    output:
+      result: {type: object}

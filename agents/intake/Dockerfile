@@ -5,17 +5,15 @@ WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    # Synthesis step uses the Claude Agent SDK on Bedrock; specialist calls use boto3.
-    CLAUDE_CODE_USE_BEDROCK=1
+    PIP_NO_CACHE_DIR=1
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY orchestrate.py app.py ./
+COPY intake.py main.py ./
 
 # AgentCore Runtime contract: HTTP server on 8080 exposing /invocations and /ping.
-# Specialist ARNs are injected at deploy via --env INTAKE_ARN/COVERAGE_ARN/RISK_ARN; the
-# orchestrator's execution role must allow bedrock-agentcore:InvokeAgentRuntime on them.
+# AWS creds come from the AgentCore execution role; AWS_REGION is injected by the runtime.
+# LiteLLM uses boto3 under the hood to call Bedrock, so no extra runtime deps are needed.
 EXPOSE 8080
-CMD ["python", "app.py"]
+CMD ["python", "main.py"]

@@ -2,7 +2,7 @@
 
 The ``bedrock_agentcore`` runtime serves the AgentCore contract (HTTP /invocations + /ping
 on port 8080) and hands the request payload to the ``@app.entrypoint`` function. Locally,
-``python app.py`` runs the same server so the agent can be exercised before deployment.
+``python main.py`` runs the same server so the agent can be exercised before deployment.
 
 Expected invocation payload (JSON, see shared/contracts.md — Coverage):
     {"claim_record": {...}, "policy_text": "<policy text>", "model": "<optional bedrock id>"}

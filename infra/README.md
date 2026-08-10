@@ -4,20 +4,40 @@ Desired-state descriptions of everything this project runs on AWS. They are the
 **input** to a provisioner (Terraform, CDK, or an in-house service), not a record
 of what is currently deployed.
 
+Agent-level config lives **with the agent**; `infra/` holds only what is genuinely
+cross-cutting.
+
 ```
+agents/
+  intake/
+    agent.yaml         # kind: AgentRuntime — how to build & provision it
+    agent-card.yaml    # kind: AgentCard    — what it is to a caller (A2A-style)
+    main.py            # AgentCore entrypoint
+    intake.py          # the agent's logic
+    Dockerfile
+    requirements.txt
+  coverage/  risk/  orchestrator/
+
 infra/
   bootstrap.yaml       # kind: Bootstrap       — remote state + locking (apply first, once)
   platform.yaml        # kind: Platform        — registry, build, IAM, secrets, gateways, console
   governance.yaml      # kind: GovernanceStore — cert signing key, cert store, policy enforcement
-  agents/
-    intake.yaml        # kind: AgentRuntime
-    coverage.yaml
-    risk.yaml
-    orchestrator.yaml
+  validate.py          # drift check — run in CI and before every apply
 ```
 
-**Adding an agent is adding a file.** A provisioner discovers `infra/agents/*.yaml`
-and iterates; there are no per-agent edits anywhere else.
+**Adding an agent is adding a directory.** A provisioner discovers
+`agents/*/agent.yaml` and iterates; nothing else changes. The directory name must
+equal `metadata.name` — `validate.py` enforces that, so an agent can never be
+split across two identities.
+
+### agent.yaml vs agent-card.yaml
+
+| | `agent.yaml` | `agent-card.yaml` |
+|---|---|---|
+| Answers | *How do I build and run this?* | *What is this, and how do I call it?* |
+| Read by | the provisioner | callers, other agents, the console |
+| Contains | build context, platform, model, memory, network, lifecycle, dependencies | identity, version, skills, input/output schema, capabilities, security scheme |
+| Changes when | infrastructure changes | the agent's contract changes |
 
 ### Apply order
 

@@ -12,9 +12,9 @@ ENV PYTHONUNBUFFERED=1 \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY risk.py app.py ./
+COPY risk.py main.py ./
 COPY kb ./kb
 
 # AgentCore Runtime contract: HTTP server on 8080 exposing /invocations and /ping.
 EXPOSE 8080
-CMD ["python", "app.py"]
+CMD ["python", "main.py"]

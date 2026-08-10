@@ -13,11 +13,11 @@ ENV PYTHONUNBUFFERED=1 \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY coverage.py app.py ./
+COPY coverage.py main.py ./
 
 # AgentCore Runtime contract: HTTP server on 8080 exposing /invocations and /ping.
 EXPOSE 8080
-CMD ["python", "app.py"]
+CMD ["python", "main.py"]
 
 # NOTE: verify at first build that claude_agent_sdk's bundled CLI runs in this base image
 # (the linux/arm64 wheel is expected to be self-contained). If it requires Node.js at

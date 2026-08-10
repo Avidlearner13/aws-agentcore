@@ -1,0 +1,55 @@
+# A2A-style capability card: what this agent IS to a caller.
+# agent.yaml says how to build and provision it; this says how to talk to it.
+apiVersion: a2a/v1
+kind: AgentCard
+
+name: intake
+displayName: Intake & Document Intelligence
+description: >-
+  Turns an unstructured first-notice-of-loss narrative and a policy document into
+  a normalised claim_record.
+version: "1.0.0"
+protocolVersion: "0.2"
+
+provider:
+  organization: agent-core
+  framework: gcp-adk
+
+# Endpoint is resolved at runtime from the AgentCore runtime ARN; there is no
+# public URL. Callers use InvokeAgentRuntime, not HTTP.
+interface:
+  transport: bedrock-agentcore
+  protocol: HTTP
+  path: /invocations
+
+capabilities:
+  streaming: false
+  pushNotifications: false
+  stateTransitionHistory: false
+
+defaultInputModes: [application/json]
+defaultOutputModes: [application/json]
+
+security:
+  - scheme: aws-iam
+    description: Caller must hold bedrock-agentcore:InvokeAgentRuntime on this runtime.
+
+skills:
+  - id: extract-claim-record
+    name: Extract structured claim record
+    description: >-
+      Parses claimant, loss (date, peril category, cause, location), line items with
+      claimed amounts, and totals. Flags what the source documents did not state
+      rather than inventing values.
+    tags: [extraction, insurance, fnol, document-intelligence]
+    input:
+      fnol_text: {type: string, required: true, description: Raw claim narrative.}
+      policy_text: {type: string, required: false, description: Policy document text.}
+      model: {type: string, required: false, description: Override the default model id.}
+    output:
+      framework: {type: string}
+      model: {type: string}
+      result: {type: object, description: The claim_record.}
+      raw: {type: string, description: Unparsed model output, for audit.}
+    examples:
+      - "Burst supply line under a kitchen sink; extract the claim record."

@@ -32,3 +32,6 @@ dist/
 # Toolkit-generated, account-specific. infra/agents/*.yaml is the source of
 # truth; run `agentcore configure` to regenerate these for a target account.
 .bedrock_agentcore.yaml
+
+# Build artifacts
+build/

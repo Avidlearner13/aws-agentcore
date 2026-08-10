@@ -15,7 +15,11 @@ RUN pip install --no-cache-dir -r ./control-plane/requirements.txt
 COPY control-plane/app ./control-plane/app
 COPY samples ./samples
 COPY policies ./policies
-# Declarative manifests: the control plane derives its agent registry from these.
+# Declarative manifests. The control plane derives its agent registry from
+# agents/<name>/agent.yaml. The build context is assembled by
+# scripts/build-control-plane-source.py, which includes only the manifest and
+# card files from agents/ - never the agent code or its venvs.
+COPY agents ./agents
 COPY infra ./infra
 
 # main.py at /srv/control-plane/app/main.py → ROOT=/srv, so /srv/samples resolves correctly.

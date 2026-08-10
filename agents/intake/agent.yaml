@@ -15,10 +15,10 @@ spec:
   source:
     framework: gcp-adk            # informational: which agent framework the code uses
     language: python
-    entrypoint: app.py            # relative to build.context - never an absolute path
+    entrypoint: main.py            # relative to build.context - never an absolute path
     build:
       type: container             # container | direct_code_deploy
-      context: agents/gcp-adk     # repo-relative
+      context: agents/intake     # repo-relative
       dockerfile: Dockerfile
       requirements: requirements.txt
       platform: linux/arm64       # AgentCore runtime requires arm64

@@ -1,0 +1,57 @@
+apiVersion: a2a/v1
+kind: AgentCard
+
+name: risk
+displayName: Risk, Fraud & Compliance
+description: >-
+  Scores a structured claim for fraud and compliance risk using retrieval over a
+  bundled guideline knowledge base, citing the guideline IDs behind each signal.
+version: "1.0.0"
+protocolVersion: "0.2"
+
+provider:
+  organization: agent-core
+  framework: langchain
+
+interface:
+  transport: bedrock-agentcore
+  protocol: HTTP
+  path: /invocations
+
+capabilities:
+  streaming: false
+  pushNotifications: false
+  stateTransitionHistory: false
+
+defaultInputModes: [application/json]
+defaultOutputModes: [application/json]
+
+security:
+  - scheme: aws-iam
+    description: Caller must hold bedrock-agentcore:InvokeAgentRuntime on this runtime.
+
+knowledgeSources:
+  - name: guidelines-kb
+    description: Underwriting and claims-handling guidelines, retrieved at inference time.
+    grounding: required          # every flag must cite a guideline id
+
+skills:
+  - id: assess-risk
+    name: Assess fraud and compliance risk
+    description: >-
+      Produces a 0-100 fraud score, a risk level, and individual flags. Each flag
+      carries the signal, a severity, an explanation, and the guideline id it came
+      from, so a reviewer can check the reasoning against source.
+    tags: [risk, fraud, compliance, rag, citations]
+    input:
+      claim_record: {type: object, required: true, description: Output of the intake agent.}
+      model: {type: string, required: false}
+    output:
+      framework: {type: string}
+      model: {type: string}
+      result:
+        type: object
+        description: fraud_score, risk_level, flags[] with guideline citations, compliance concerns.
+      raw: {type: string}
+    examples:
+      - "Prompt-reported water damage claim with no attachments."

@@ -1,7 +1,7 @@
 """AgentCore Runtime entrypoint for the LangChain Risk/Fraud/Compliance agent.
 
 The ``bedrock_agentcore`` runtime serves the AgentCore contract (HTTP /invocations + /ping)
-and hands the request payload to the ``@app.entrypoint`` function. Locally, ``python app.py``
+and hands the request payload to the ``@app.entrypoint`` function. Locally, ``python main.py``
 runs the same server so the agent can be exercised before deployment.
 
 Expected invocation payload (JSON), per shared/contracts.md (Risk):

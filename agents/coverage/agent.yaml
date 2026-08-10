@@ -2,31 +2,38 @@ apiVersion: agentcore/v1
 kind: AgentRuntime
 
 metadata:
-  name: risk
-  displayName: Risk, Fraud & Compliance
+  name: coverage
+  displayName: Coverage & Adjudication
   description: >-
-    RAG over a bundled guideline knowledge base. Produces a fraud score, risk
-    level and compliance flags, each citing the guideline IDs it relied on.
+    Matches a structured claim_record against the policy text: coverage status,
+    applicable coverages, exclusions, deductible and eligible payout.
   labels:
     phase: "1"
-    role: risk
+    role: coverage
 
 spec:
   source:
-    framework: langchain
+    framework: claude-agent-sdk
     language: python
-    entrypoint: app.py
+    entrypoint: main.py
     build:
       type: container
-      context: agents/langchain
+      context: agents/coverage
       dockerfile: Dockerfile
       requirements: requirements.txt
       platform: linux/arm64
       remote_build: true
 
   model:
-    id: us.amazon.nova-pro-v1:0
+    id: us.anthropic.claude-sonnet-4-6
     overrideEnvVar: CLAUDE_MODEL
+    # The Claude Agent SDK runs the bundled Claude Code CLI as a subprocess and
+    # routes it at Bedrock. Both flags below are set in the image, and the
+    # execution role needs bedrock:ListInferenceProfiles for model discovery -
+    # without it the CLI silently falls back to a hardcoded model list.
+    provider:
+      type: bedrock
+      requiresInferenceProfileDiscovery: true
 
   runtime:
     protocol: HTTP
@@ -39,7 +46,7 @@ spec:
 
   memory:
     enabled: true
-    name: risk_mem
+    name: coverage_mem
     mode: STM_ONLY
     eventExpiryDays: 30
 
@@ -61,20 +68,14 @@ spec:
 
   dependencies: []
 
-  data:
-    # Baked into the image at build time; KB_DIR is resolved relative to the
-    # module so the path holds inside the container.
-    - name: guidelines-kb
-      type: bundled
-      source: agents/langchain/kb
-      mountPath: /app/kb
+  data: []
 
   console:
-    key: risk
+    key: coverage
     group: specialist
-    label: Risk, Fraud & Compliance
-    arnEnv: RISK_ARN
-    urlEnv: RISK_URL
-    localPort: 8773
+    label: Coverage & Adjudication
+    arnEnv: COVERAGE_ARN
+    urlEnv: COVERAGE_URL
+    localPort: 8771
 
   env: {}

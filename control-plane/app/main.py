@@ -42,22 +42,22 @@ CLAIMS_DIR = SAMPLES_DIR / "claims"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 # --- Agent registry --------------------------------------------------------------
-# Derived from the declarative manifests in infra/agents/*.yaml, which are the single
-# source of truth for what an agent is. Each target has a localhost `url` (local dev)
-# and an optional AgentCore `arn` (env). When the ARN is set we invoke via the
-# AgentCore data plane (InvokeAgentRuntime); otherwise localhost HTTP.
-MANIFEST_DIR = ROOT / "infra" / "agents"
+# Derived from agents/<name>/agent.yaml, which is the single source of truth for what
+# an agent is. Each target has a localhost `url` (local dev) and an optional AgentCore
+# `arn` (env). When the ARN is set we invoke via the AgentCore data plane
+# (InvokeAgentRuntime); otherwise localhost HTTP.
+MANIFEST_DIR = ROOT / "agents"
 
 
 def _load_registry() -> tuple[dict, dict]:
-    """Build the specialist + orchestrator registries from infra/agents/*.yaml."""
+    """Build the specialist + orchestrator registries from agents/*/agent.yaml."""
     import yaml
 
     agents: dict[str, dict] = {}
     orchestrators: dict[str, dict] = {}
     if not MANIFEST_DIR.is_dir():
         return agents, orchestrators
-    for path in sorted(MANIFEST_DIR.glob("*.yaml")):
+    for path in sorted(MANIFEST_DIR.glob("*/agent.yaml")):
         try:
             doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except Exception:  # noqa: BLE001 - a malformed manifest must not take the console down

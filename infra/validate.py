@@ -25,17 +25,17 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-AGENT_DIR = ROOT / "infra" / "agents"
+AGENT_DIR = ROOT / "agents"                 # one directory per agent
 ALLOWLIST = ROOT / "policies" / "allowlist.yaml"
 PLATFORM = ROOT / "infra" / "platform.yaml"
 
-# Where each agent's runtime default model literal lives, so manifest and code
-# cannot silently disagree.
-CODE_MODEL_SOURCES = {
-    "intake": ROOT / "agents" / "gcp-adk" / "intake.py",
-    "coverage": ROOT / "agents" / "claude-sdk" / "coverage.py",
-    "risk": ROOT / "agents" / "langchain" / "risk.py",
-    "orchestrator": ROOT / "agents" / "orchestrator-claude" / "orchestrate.py",
+# The module holding each agent's DEFAULT_MODEL literal, relative to its own
+# directory, so manifest and code cannot silently disagree.
+CODE_MODEL_MODULES = {
+    "intake": "intake.py",
+    "coverage": "coverage.py",
+    "risk": "risk.py",
+    "orchestrator": "orchestrate.py",
 }
 
 REQUIRED = [
@@ -73,7 +73,8 @@ def main() -> int:
     allow_frameworks = set(allow.get("frameworks") or [])
 
     manifests: dict[str, dict] = {}
-    for path in sorted(AGENT_DIR.glob("*.yaml")):
+    manifest_dirs: dict[str, Path] = {}
+    for path in sorted(AGENT_DIR.glob("*/agent.yaml")):
         try:
             doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError as exc:
@@ -87,6 +88,12 @@ def main() -> int:
         name = dig(doc, "metadata", "name")
         if name:
             manifests[name] = doc
+            manifest_dirs[name] = path.parent
+            if name != path.parent.name:
+                err(f"{path.parent.name}/: directory name does not match "
+                    f"metadata.name {name!r} - one agent, one directory")
+            if not (path.parent / "agent-card.yaml").exists():
+                warnings.append(f"{name}: no agent-card.yaml alongside agent.yaml")
 
         # 6. leakage
         text = path.read_text(encoding="utf-8")
@@ -106,9 +113,13 @@ def main() -> int:
             err(f"{name}: framework {framework!r} is not in policies/allowlist.yaml")
 
     # 3. manifest model vs the literal in the agent's code
-    for name, src in CODE_MODEL_SOURCES.items():
+    for name, module in CODE_MODEL_MODULES.items():
         doc = manifests.get(name)
-        if doc is None or not src.exists():
+        if doc is None:
+            continue
+        src = manifest_dirs[name] / module
+        if not src.exists():
+            warnings.append(f"{name}: expected {module} in {manifest_dirs[name].name}/")
             continue
         match = re.search(r'DEFAULT_MODEL\s*=\s*os\.environ\.get\(\s*"[^"]+"\s*,\s*"([^"]+)"',
                           src.read_text(encoding="utf-8"))

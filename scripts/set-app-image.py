@@ -23,12 +23,20 @@ REPO = os.environ.get("AGENTCORE_ECR_REPO", "agent-core-control-plane")
 
 
 def _resolve_service(ar, name: str) -> str:
-    """Look the App Runner service ARN up by name, so no account ID is hardcoded."""
-    paginator = ar.get_paginator("list_services")
-    for page in paginator.paginate():
-        for s in page["ServiceSummaryList"]:
+    """Look the App Runner service ARN up by name, so no account ID is hardcoded.
+
+    apprunner:ListServices is not a botocore-pageable operation, so page by hand
+    rather than via get_paginator (which raises OperationNotPageableError).
+    """
+    token = None
+    while True:
+        resp = ar.list_services(**({"NextToken": token} if token else {}))
+        for s in resp.get("ServiceSummaryList", []):
             if s["ServiceName"] == name:
                 return s["ServiceArn"]
+        token = resp.get("NextToken")
+        if not token:
+            break
     raise SystemExit(f"ERROR: App Runner service '{name}' not found in profile "
                      f"{PROFILE} ({REGION}). Has it been created yet?")
 

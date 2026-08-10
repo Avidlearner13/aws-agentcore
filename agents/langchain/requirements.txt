@@ -1,0 +1,8 @@
+# LangChain / LangGraph agent (Phase 1 task)
+langchain
+langchain-core
+langgraph
+langchain-aws
+langchain-community
+boto3
+bedrock-agentcore

@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# Secrets & local config
+.env
+.env.*
+*.pem
+.aws/
+
+# Governance layer runtime state (local cert store + local RSA signing key)
+.governance/
+
+# AgentCore starter-toolkit build artifacts (keep the .bedrock_agentcore.yaml config files)
+.bedrock_agentcore/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json

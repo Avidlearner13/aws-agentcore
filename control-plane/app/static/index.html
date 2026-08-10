@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent-Core · Claims Adjudication</title>
+<style>
+  :root{--bg:#0f1419;--panel:#171d26;--panel2:#1e2630;--line:#2a3340;--text:#e6edf3;
+    --muted:#8b98a8;--accent:#4c8bf5;--ok:#1f7a1f;--warn:#c79100;--bad:#b3261e;--info:#1f6feb;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  header{padding:14px 24px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;
+    align-items:center;justify-content:space-between}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  .wrap{max-width:1600px;margin:0 auto;padding:20px 32px}
+  .tabs{display:flex;gap:8px;margin-bottom:18px}
+  .tab{padding:8px 16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);
+    cursor:pointer;color:var(--muted);font-weight:600}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 10px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  select,input[type=file]{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+    border-radius:7px;padding:8px}
+  label{font-size:12px;color:var(--muted);margin-right:6px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--text)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .grid3>*{min-width:0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid2>*{min-width:0}
+  .b-executed,.b-certified{background:rgba(31,122,31,.25);color:#5fd35f}
+  .b-blocked,.b-rejected,.b-revoked,.b-expired{background:rgba(179,38,30,.25);color:#ff7b72}
+  .b-submitted,.b-none,.b-running{background:rgba(199,145,0,.25);color:#f0c040}
+  .verdict{display:flex;align-items:center;gap:12px;border-radius:10px;padding:12px 14px;margin-top:8px}
+  .verdict .big{font-size:26px;line-height:1}
+  .verdict .vt{font-weight:700;font-size:15px}.verdict .vs{font-size:12.5px;color:var(--muted)}
+  .v-ok{background:rgba(31,122,31,.15);border:1px solid rgba(95,211,95,.35)}
+  .v-ok .vt{color:#5fd35f}
+  .v-bad{background:rgba(179,38,30,.15);border:1px solid rgba(255,123,114,.35)}
+  .v-bad .vt{color:#ff7b72}
+  .stepflow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 2px}
+  .stepflow .sf{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12px}
+  .stepflow .sf b{display:block;color:var(--text);font-size:12.5px;margin-bottom:2px}
+  .stepflow .sf span{color:var(--muted)}
+  /* Governance guided storyline */
+  .story{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .story .chap{flex:1;min-width:130px;background:var(--panel);border:1px solid var(--line);
+    border-radius:9px;padding:9px 11px;cursor:pointer;color:var(--muted);font-size:12px;line-height:1.3}
+  .story .chap b{display:block;font-size:15px;color:var(--text);margin-bottom:2px}
+  .story .chap.active{border-color:var(--accent);background:rgba(76,139,245,.16);color:#cdddff}
+  .story .chap.active b{color:#fff}
+  .story .chap.done{border-color:rgba(95,211,95,.45)}
+  .story .chap.done b::after{content:" ✓";color:#5fd35f;font-size:12px}
+  .stage{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
+  .stage>*{min-width:0}
+  @media(max-width:860px){.stage{grid-template-columns:1fr}}
+  .chip{display:inline-block;font-size:10.5px;font-weight:700;color:var(--accent);
+    text-transform:uppercase;letter-spacing:.06em}
+  .stagetitle{font-size:17px;text-transform:none;letter-spacing:0;color:var(--text);margin:5px 0 10px}
+  .navrow{display:flex;align-items:center;margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+  button.danger{background:#9c2b22}
+  .feedcard{background:#0b0f14}
+  .feedhead{display:flex;align-items:center;justify-content:space-between}
+  .feed{display:flex;flex-direction:column;gap:7px;max-height:440px;overflow:auto;font-size:12.5px;line-height:1.45}
+  .feed .ln{display:flex;gap:9px;align-items:flex-start;padding:7px 9px;border-radius:8px;
+    background:var(--panel2);border:1px solid var(--line)}
+  .feed .ln .ic{flex:0 0 auto;font-size:14px;line-height:1.3}
+  .feed .ln .tx{min-width:0;word-break:break-word}
+  .feed .ln .tm{color:var(--muted);font-size:10px;margin-top:2px}
+  .feed .ln.bot{background:rgba(76,139,245,.10);border-color:rgba(76,139,245,.32)}
+  .feed .ln.good{background:rgba(31,122,31,.13);border-color:rgba(95,211,95,.3)}
+  .feed .ln.bad{background:rgba(179,38,30,.13);border-color:rgba(255,123,114,.32)}
+  .statusbar{display:flex;gap:22px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .runbar{display:flex;align-items:center;gap:12px;font-size:16px;line-height:1.4;
+    background:rgba(76,139,245,.12);border:1px solid rgba(76,139,245,.45);border-radius:10px;
+    padding:13px 18px;margin-bottom:16px}
+  .runbar b{color:#9cc2ff}
+  .runbar .fwbig{font-size:17px;color:#fff;background:rgba(76,139,245,.28);
+    border-radius:7px;padding:2px 10px;font-weight:700}
+  .runbar .live{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;
+    color:#5fd35f;letter-spacing:.05em}
+  .runbar .live::before{content:"";width:9px;height:9px;border-radius:50%;background:#5fd35f;
+    box-shadow:0 0 7px #5fd35f;animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .agentsel{display:flex;gap:10px;margin-bottom:12px}
+  .agentsel button{flex:1;text-align:left;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:11px 14px;color:var(--muted);cursor:pointer;font-weight:600}
+  .agentsel button b{display:block;font-size:14.5px;color:var(--text)}
+  .agentsel button span{display:block;font-size:11.5px;font-weight:400;margin-top:2px}
+  .agentsel button.active{border-color:var(--accent);background:rgba(76,139,245,.16)}
+  .agentsel button.active b{color:#fff}
+  /* visual governance intro */
+  .govhero{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+  .ghx{display:flex;gap:12px;align-items:center;flex:1;min-width:240px}
+  .ghbig{font-size:34px;line-height:1}
+  .ght{font-size:16px;font-weight:700}
+  .doors{display:flex;gap:10px;flex:1.3;min-width:280px}
+  .door{flex:1;display:flex;flex-direction:column;gap:2px;border-radius:10px;padding:10px 13px;border:1px solid var(--line)}
+  .door .di{font-size:21px}
+  .door b{font-size:13.5px}
+  .door span{font-size:11.5px;color:var(--muted)}
+  .door.bad{background:rgba(199,145,0,.12);border-color:rgba(240,192,64,.35)}
+  .door.ok{background:rgba(76,139,245,.12);border-color:rgba(76,139,245,.4)}
+  .lifeflow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .lifeflow .lf{display:flex;flex-direction:column;align-items:center;gap:1px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:9px;padding:8px 15px;font-size:12.5px;font-weight:600;min-width:72px}
+  .lifeflow .lf span{font-size:21px}
+  .lifeflow .lf small{font-size:9.5px;color:var(--muted);font-weight:400}
+  .lifeflow .lfar{color:var(--muted)}
+  /* line icons (SVG, size via font-size, color via currentColor) */
+  svg.ico{vertical-align:-0.15em}
+  .door.bad .di{color:#f0c040}.door.ok .di{color:#9cc2ff}
+  .lifeflow .lf .lfi{color:var(--accent)}
+  .feed .ln.good .ic{color:#5fd35f}.feed .ln.bad .ic{color:#ff7b72}.feed .ln.bot .ic{color:#9cc2ff}
+  .feed .ln .ic{color:var(--muted);font-size:15px;line-height:0}
+  /* process-flow diagram (LangGraph-style) */
+  .flow{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin:2px 0 4px}
+  .flow .fn{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:9px;
+    padding:6px 10px;background:var(--panel2);font-size:12px;color:var(--muted);transition:all .2s}
+  .flow .fn .fni{font-size:15px;line-height:0;display:inline-flex}
+  .flow .fn.done{border-color:rgba(95,211,95,.5);color:#cfeccf;background:rgba(31,122,31,.13)}
+  .flow .fn.done .fni{color:#5fd35f}
+  .flow .fn.active{border-color:var(--accent);color:#fff;background:rgba(76,139,245,.2);box-shadow:0 0 0 1px rgba(76,139,245,.45)}
+  .flow .fn.active .fni{color:#9cc2ff;animation:pulse 1s ease-in-out infinite}
+  .flow .fn.fail{border-color:rgba(255,123,114,.65);color:#ffd2ce;background:rgba(179,38,30,.2)}
+  .flow .fn.fail .fni{color:#ff7b72}
+  .flow .fn.skip{opacity:.38}
+  .flow .fn .fk{font-size:9.5px;font-weight:800;color:#ff7b72;letter-spacing:.04em;margin-left:1px}
+  .flow .fcon{color:var(--line);font-size:13px;line-height:0;flex:0 0 auto}
+  .flow .fcon.passed{color:#5fd35f}
+  /* moving "working" indicator while an action is in flight */
+  .busybar{display:flex;align-items:center;gap:10px;background:rgba(76,139,245,.10);
+    border:1px solid rgba(76,139,245,.32);border-radius:8px;padding:8px 11px;margin-bottom:9px;font-size:12.5px}
+  .busybar .bdot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--accent);
+    animation:pulse 1.1s ease-in-out infinite}
+  .busybar .blbl{flex:0 0 auto;color:#cdddff}
+  .busybar .bbar{flex:1;height:4px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;position:relative}
+  .busybar .bbar i{position:absolute;top:0;left:-45%;width:45%;height:100%;border-radius:3px;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:slide 1.05s linear infinite}
+  @keyframes slide{to{left:120%}}
+  .feed .ln.work{background:rgba(76,139,245,.10);border-color:rgba(76,139,245,.32)}
+  .feed .ln.work .ic{color:var(--accent);animation:pulse 1.1s ease-in-out infinite}
+  /* top intro: clear "what it does" + phase cards */
+  .iht{font-size:18px;font-weight:700}
+  .ihline{font-size:14px;margin:7px 0 11px}
+  .ihq{display:flex;gap:10px;flex-wrap:wrap}
+  .ihqi{display:flex;align-items:center;gap:11px;flex:1;min-width:200px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14.5px;font-weight:600}
+  .ihqi .qt{display:flex;flex-direction:column;line-height:1.25}
+  .ihqi .qt small{font-size:11px;color:var(--muted);font-weight:400;margin-top:2px}
+  /* intro nav tiles (describe + navigate) */
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+  @media(max-width:760px){.tiles{grid-template-columns:1fr}}
+  .tile{background:var(--panel2);border:1px solid var(--line);border-top:3px solid var(--accent);
+    border-radius:11px;padding:13px 15px;cursor:pointer;transition:transform .12s,border-color .12s,background .12s}
+  .tile:hover{transform:translateY(-2px);background:#1b2330}
+  .tile.active{border-color:var(--accent);background:rgba(76,139,245,.12)}
+  .tile .tlabel{font-size:10.5px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.07em}
+  .tile .ttitle{font-size:15.5px;font-weight:700;margin:2px 0 5px}
+  .tile .topen{margin-top:9px;font-size:12px;color:var(--accent);font-weight:600}
+  .agent-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+  .fw{font-size:11px;color:var(--muted)}
+  .pill{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600}
+  .fw-gcp-adk{background:rgba(199,145,0,.2);color:#f0c040}
+  .fw-claude-agent-sdk{background:rgba(76,139,245,.2);color:#9cc2ff}
+  .fw-langchain{background:rgba(31,122,31,.25);color:#5fd35f}
+  .out{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:10px;font-size:13px;min-height:40px}
+  .meta{font-size:11px;color:var(--muted);margin-top:8px}
+  table{width:100%;border-collapse:collapse;margin-top:6px}
+  th,td{text-align:left;padding:5px 7px;border-bottom:1px solid var(--line);font-size:12.5px;vertical-align:top}
+  th{color:var(--muted);font-size:10.5px;text-transform:uppercase}
+  .badge{font-size:12px;padding:3px 10px;border-radius:20px;font-weight:700}
+  .b-approve,.b-covered,.b-low{background:rgba(31,122,31,.25);color:#5fd35f}
+  .b-deny,.b-denied,.b-high{background:rgba(179,38,30,.25);color:#ff7b72}
+  .b-partial,.b-partially_covered,.b-medium,.b-needs_review{background:rgba(199,145,0,.25);color:#f0c040}
+  .b-refer_to_human{background:rgba(31,111,235,.25);color:#79b8ff}
+  .pipeline{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;margin:6px 0 14px}
+  .step{flex:1;min-width:150px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px}
+  .step .s-name{font-weight:600}.step .s-fw{font-size:11px;color:var(--muted)}
+  .arrow{align-self:center;color:var(--muted)}
+  .spinner{display:inline-block;width:15px;height:15px;border:2px solid var(--muted);border-top-color:var(--accent);
+    border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  details{margin-top:10px}summary{cursor:pointer;color:var(--muted);font-size:12px}
+  pre{background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;font-size:11.5px;max-height:300px;
+    white-space:pre-wrap;word-break:break-word;max-width:100%}
+  details{min-width:0}
+  .letter{white-space:pre-wrap;background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:12px;font-size:13px}
+  .hide{display:none}
+  .kpi{display:flex;gap:22px;flex-wrap:wrap;margin:8px 0}
+  .kpi div{font-size:12px;color:var(--muted)}.kpi b{color:var(--text);font-size:15px;display:block}
+  .err{color:#ff7b72}
+  /* Phase 2 — guided workflow */
+  .p2inputs{display:flex;gap:30px;flex-wrap:wrap;align-items:center;background:var(--panel2);
+    border:1px solid var(--line);border-radius:9px;padding:13px 16px}
+  .p2inputs .ilabel{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);margin-bottom:4px}
+  .p2inputs b{font-size:14px}
+  .stephead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+  .stephead b{font-size:14.5px}
+  .vstep{display:flex;align-items:center;gap:13px;padding:12px 14px;border:1px solid var(--line);
+    border-radius:9px;margin-bottom:9px;background:var(--panel2);transition:border-color .2s,background .2s}
+  .vstep:last-child{margin-bottom:0}
+  .vstep.running{border-color:var(--accent);background:rgba(76,139,245,.10)}
+  .vstep.done{border-color:rgba(95,211,95,.40)}
+  .vstep.fail{border-color:rgba(255,123,114,.45)}
+  .vstep .vs-ico{font-size:17px;width:24px;text-align:center;flex:0 0 auto;color:var(--muted)}
+  .vstep.done .vs-ico{color:#5fd35f}.vstep.fail .vs-ico{color:#ff7b72}
+  .vstep .vs-body{flex:1;min-width:0}
+  .vstep .vs-name{font-weight:600}
+  .vstep .vs-sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .vstep .vs-state{font-size:12.5px;color:var(--muted);flex:0 0 auto;font-variant-numeric:tabular-nums}
+  .vstep.done .vs-state{color:#5fd35f}.vstep.running .vs-state{color:#9cc2ff}
+  .dechead{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+  .stepsmini{font-size:11.5px;color:#5fd35f;font-variant-numeric:tabular-nums}
+  .stepsmini span{margin-left:12px}
+  .gateline{display:flex;align-items:center;gap:9px;border-radius:9px;padding:11px 14px;
+    margin:8px 0 14px;font-size:13px;color:var(--muted)}
+  .gate-hold{background:rgba(199,145,0,.13);border:1px solid rgba(240,192,64,.38);color:#f0c040}
+  .confirm{display:flex;align-items:flex-start;gap:13px;border-radius:10px;padding:14px 16px;font-size:13.5px;line-height:1.5}
+  .confirm .cf-ico{font-size:22px;line-height:1.2}
+  .confirm-ok{background:rgba(31,122,31,.14);border:1px solid rgba(95,211,95,.4)}
+  .confirm-ok .cf-ico{color:#5fd35f}
+  .confirm-bad{background:rgba(199,145,0,.13);border:1px solid rgba(240,192,64,.4)}
+  .confirm-bad .cf-ico{color:#f0c040}
+  /* Phase 2 — split view (business user | agent runtime) */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .split>*{min-width:0;margin-bottom:0}
+  @media(max-width:1100px){.split{grid-template-columns:1fr}}
+  .splitR{background:#0b0f14}
+  .paneHead{display:flex;align-items:baseline;gap:9px;font-weight:700;font-size:13.5px;
+    padding-bottom:10px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+  .paneHead .pico{font-size:16px}
+  .paneHead .psub{font-size:11px;color:var(--muted);font-weight:400;margin-left:auto}
+  .bizspin{font-size:15px;display:flex;align-items:center;gap:6px}
+  .pbar{height:8px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .pbar-fill{height:100%;background:var(--accent);border-radius:6px;transition:width .6s ease}
+  .orchline{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5}
+  .orchline b{color:#9cc2ff}.orchline code{color:var(--muted);font-size:11px}
+  /* agent runtime flow rows */
+  .arow{position:relative;padding:11px 0 11px 26px;border-left:2px solid var(--line);margin-left:7px}
+  .arow:last-child{border-left-color:transparent}
+  .arow .adot{position:absolute;left:-8px;top:12px;width:14px;height:14px;border-radius:50%;
+    background:var(--panel2);border:2px solid var(--line)}
+  .arow.done .adot{background:#5fd35f;border-color:#5fd35f}
+  .arow.running .adot{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px rgba(76,139,245,.18)}
+  .arow.fail .adot{background:#ff7b72;border-color:#ff7b72}
+  .arow .atop{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .arow .aname{font-weight:600;font-size:13px}
+  .arow .art{font-size:10.5px;color:var(--muted)}
+  .arow .astate{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .arow.done .astate{color:#5fd35f}.arow.running .astate{color:#9cc2ff}
+  .arow .adesc{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .arow .apass{font-size:11px;color:#7fb0ff;margin-top:6px;font-family:ui-monospace,Consolas,monospace;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .arow .apass .pk{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Agent-Core <span style="color:var(--muted);font-weight:400">· Intelligent Claims Adjudication</span></h1>
+  <span class="fw" id="reg"></span>
+</header>
+
+<div class="wrap">
+  <div class="tabs">
+    <div class="tab active" data-tab="p1">Phase 1 — Specialists</div>
+    <div class="tab" data-tab="p2">Phase 2 — Orchestrated Adjudication</div>
+    <div class="tab" data-tab="p3">Observability</div>
+    <div class="tab" data-tab="gov">🔐 Governance — Cert Gate</div>
+  </div>
+
+  <div class="card" id="intro" style="border-left:3px solid var(--accent)">
+    <div class="iht">Enterprise claims-adjudication platform</div>
+    <div class="ihline">A customer files an insurance claim. The platform decides three things:</div>
+    <div class="ihq">
+      <div class="ihqi"><span style="color:#5fd35f;font-size:21px;line-height:0"><svg class="ico" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="qt">Is it covered?<small>(claim checked against the policy terms)</small></span></div>
+      <div class="ihqi"><span style="color:#f0c040;font-size:21px;line-height:0"><svg class="ico" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span><span class="qt">How risky is it?<small>(fraud score from the claim vs. KB guidelines)</small></span></div>
+      <div class="ihqi"><span style="color:#9cc2ff;font-size:21px;line-height:0"><svg class="ico" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v2M12 16v2"/></svg></span><span class="qt">What should we pay?<small>(eligible amount after deductible &amp; limits)</small></span></div>
+    </div>
+    <div class="fw" style="margin-top:10px;font-size:12.5px;line-height:1.6">The work is split across
+      <b>three AI agents on three different frameworks</b> (GCP ADK · Claude Agent SDK · LangChain), all
+      running on <b>AWS Bedrock AgentCore</b>.</div>
+    <div class="tiles">
+      <div class="tile" data-tab="p1"><div class="tlabel">Phase 1</div><div class="ttitle">Specialists</div>
+        <div class="fw" style="font-size:12px">Run each of the three agents on its own to see what it does.</div>
+        <div class="topen">Open →</div></div>
+      <div class="tile" data-tab="p2"><div class="tlabel">Phase 2</div><div class="ttitle">Orchestrated</div>
+        <div class="fw" style="font-size:12px">A supervisor runs Intake → Coverage → Risk → decision.</div>
+        <div class="topen">Open →</div></div>
+      <div class="tile" data-tab="gov"><div class="tlabel">Governance</div><div class="ttitle">Certificate gate</div>
+        <div class="fw" style="font-size:12px">Only certified agents may run — revoke kills them instantly.</div>
+        <div class="topen">Open →</div></div>
+    </div>
+  </div>
+
+  <!-- shared input -->
+  <div class="card">
+    <div class="row">
+      <span><label>Policy</label><select id="policy"></select></span>
+      <span style="flex:1"></span>
+      <span class="fw">FNOL: bundled sample claim (burst-pipe water damage)</span>
+    </div>
+    <div class="fw" style="margin-top:8px">These are the <b>source inputs</b> the platform feeds the agents — the claim documents (FNOL) and the chosen policy.</div>
+    <details ontoggle="if(this.open)loadSrc(this)"><summary>View source documents (FNOL + policy text)</summary><pre></pre></details>
+  </div>
+
+  <!-- PHASE 1 -->
+  <div id="p1">
+    <div class="grid3" id="agentCards"></div>
+  </div>
+
+  <!-- PHASE 2 — split view: business user (left) vs agent runtime (right) -->
+  <div id="p2" class="hide">
+    <div class="split">
+
+      <!-- LEFT: what the adjuster sees (business user · front end) -->
+      <div class="card splitL">
+        <div class="paneHead"><span class="pico">👤</span> What the adjuster sees
+          <span class="psub">business user · front end</span></div>
+
+        <!-- ready -->
+        <div id="bizReady">
+          <div class="fw" style="margin-bottom:12px;line-height:1.5;color:var(--text)">
+            Submit the claim for an end-to-end <b>decision</b> — an outcome, a recommended payout,
+            and a drafted customer letter. Any payout is held for your approval.
+          </div>
+          <div class="p2inputs">
+            <div><span class="ilabel">Claim</span><b>Burst-pipe water damage</b><div class="fw">bundled FNOL sample</div></div>
+            <div><span class="ilabel">Policy</span><b id="p2PolicyEcho">—</b><div class="fw">change in the input card above</div></div>
+            <div><span class="ilabel">Orchestrator</span><select id="orch"></select></div>
+          </div>
+          <div class="row" style="margin-top:14px">
+            <button id="adjBtn">▶&nbsp; Run adjudication</button>
+            <span id="adjStatus" class="fw"></span>
+          </div>
+        </div>
+
+        <!-- running (calm) -->
+        <div id="bizRunning" class="hide">
+          <div class="bizspin"><span class="spinner"></span> <b id="bizMsg">Reviewing your claim…</b></div>
+          <div class="fw" id="bizSub" style="margin:6px 0 14px">This usually takes 2–3 minutes.</div>
+          <div class="pbar"><div class="pbar-fill" id="bizBar" style="width:6%"></div></div>
+          <div class="fw" id="bizElapsed" style="margin-top:8px">0:00 elapsed</div>
+        </div>
+
+        <!-- decision -->
+        <div id="bizDecision" class="hide"></div>
+      </div>
+
+      <!-- RIGHT: under the hood (multi-agent runtime) -->
+      <div class="card splitR">
+        <div class="paneHead"><span class="pico">⚙</span> Under the hood · Agent runtime
+          <span class="psub">multi-agent · AWS Bedrock AgentCore</span></div>
+        <div class="orchline" id="orchLine"></div>
+        <div id="agentFlow"></div>
+        <details id="dataFlowWrap" class="hide"><summary>data passing between agents (JSON)</summary><pre id="dataFlow"></pre></details>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- OBSERVABILITY -->
+  <div id="p3" class="hide">
+    <div class="card">
+      <div class="fw" style="line-height:1.6;color:var(--text)">
+        Live telemetry from <b style="color:#9cc2ff">AWS Bedrock AgentCore</b> — every agent runtime
+        emits logs + OTEL traces to CloudWatch automatically. Below are the <b>live runtime logs</b>
+        pulled straight from each agent's AgentCore runtime.<span id="obsDash"></span>
+      </div>
+      <button id="obsRefresh" style="margin-top:12px">Refresh insights &amp; logs</button>
+      <span id="obsStatus" class="fw" style="margin-left:8px"></span>
+    </div>
+    <div id="obsInsights"></div>
+    <h2 style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin:6px 2px">Live runtime logs</h2>
+    <div id="obsPanels"></div>
+  </div>
+
+  <!-- GOVERNANCE — CERTIFICATION GATE (guided storyline) -->
+  <div id="gov" class="hide">
+    <div class="card" style="border-left:3px solid var(--accent)">
+      <div class="govhero">
+        <div class="ghx">
+          <div class="ghbig" style="color:var(--accent)"><svg class="ico" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></div>
+          <div><div class="ght">Same AI agent. Two doors.</div>
+            <div class="fw">AWS runs anything you deploy. Our platform runs it only with a
+              <b>certificate of trust</b> it had to earn.</div></div>
+        </div>
+        <div class="doors">
+          <div class="door bad"><span class="di"><svg class="ico" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></span><b>Raw AWS</b>
+            <span>runs anything · no checks · no off-switch</span></div>
+          <div class="door ok"><span class="di"><svg class="ico" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span><b>Our platform</b>
+            <span>runs only with a valid certificate</span></div>
+        </div>
+      </div>
+      <div class="lifeflow">
+        <div class="lf"><span class="lfi"><svg class="ico" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></span>Submit</div><span class="lfar">→</span>
+        <div class="lf"><span class="lfi"><svg class="ico" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7 16h10"/></svg></span>Test live</div><span class="lfar">→</span>
+        <div class="lf"><span class="lfi"><svg class="ico" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.2 13.9 7 22l5-3 5 3-1.2-8.1"/></svg></span>Certify</div><span class="lfar">→</span>
+        <div class="lf"><span class="lfi"><svg class="ico" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg></span>Enforce<small>run · revoke · expire</small></div>
+      </div>
+      <div class="fw" style="margin-top:10px">▶ Follow the 3 steps below in order — the panel on the
+        right narrates exactly what the agent does at each one.</div>
+      <details style="margin-top:4px"><summary class="fw" style="cursor:pointer">How it's secured</summary>
+        <div class="fw" id="govConfig" style="margin-top:6px"></div></details>
+    </div>
+
+    <!-- one agent, followed through its whole life; the gate protects any agent -->
+    <div class="fw" style="margin:0 2px 10px">This walkthrough follows <b>one agent</b> — the
+      <b>Claims Coverage Agent</b> — through its whole life. The same gate protects <b>any</b> agent;
+      it works identically for the multi-agent <b>Claims Orchestrator</b>.</div>
+
+    <!-- prominent: where the agent actually runs -->
+    <div class="runbar" id="runbar">
+      <span class="live">LIVE</span>
+      <span>This agent runs on <b>AWS Bedrock AgentCore</b> &nbsp;·&nbsp; framework
+        <span class="fwbig">Claude Agent SDK</span></span>
+    </div>
+
+    <!-- storyline chapter selector -->
+    <div class="story" id="story"></div>
+
+    <!-- stage: instruction + actions (left)  |  live narration feed (right) -->
+    <div class="stage">
+      <div class="card stagepanel">
+        <div class="chip" id="stageTag"></div>
+        <h2 class="stagetitle" id="stageTitle"></h2>
+        <div id="stageInstruction" style="font-size:13.5px;line-height:1.55"></div>
+        <div class="row" id="stageActions" style="margin-top:12px"></div>
+        <div id="stageFlow" class="flow" style="margin-top:14px"></div>
+        <div id="stageResult" style="margin-top:8px"></div>
+        <div class="navrow">
+          <button class="ghost" id="prevChap">‹ Back</button>
+          <span style="flex:1"></span>
+          <button id="nextChap">Next step ›</button>
+        </div>
+      </div>
+      <div class="card feedcard">
+        <h2 class="feedhead">What's happening
+          <span class="fw" id="feedClear" style="cursor:pointer;text-transform:none;letter-spacing:0">clear</span></h2>
+        <div id="feedBusy" class="busybar hide"><span class="bdot"></span><span class="blbl" id="feedBusyLbl">Working…</span><div class="bbar"><i></i></div></div>
+        <div id="feed" class="feed"></div>
+      </div>
+    </div>
+
+    <!-- persistent trust ledger: who holds a valid certificate right now -->
+    <div class="card">
+      <h2 class="feedhead" style="margin-bottom:10px">Trust ledger
+        <span class="fw" style="text-transform:none;letter-spacing:0">— who holds a valid certificate right now (updates as you go)</span></h2>
+      <table class="ledger" style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="text-align:left;color:var(--muted)">
+          <th style="padding:6px 8px;font-weight:600">Agent</th>
+          <th style="padding:6px 8px;font-weight:600">Certificate</th>
+          <th style="padding:6px 8px;font-weight:600">Detail</th></tr></thead>
+        <tbody id="ledgerBody"><tr><td class="fw" colspan="3" style="padding:6px 8px">loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s); const $$=s=>document.querySelectorAll(s);
+let REG=null, OBS=[];
+
+// Plain-language description of what each specialist does.
+const DESC={
+  intake:"Reads the claim form + policy PDF and extracts a clean, structured claim record — claimant, cause of loss, and each line item with amounts.",
+  coverage:"Checks the claim against the policy: which coverages apply, which exclusions trigger, the deductible, and the eligible payout amount — with citations.",
+  risk:"Scores fraud risk and checks regulatory compliance, citing the insurer's guidelines it retrieves from the knowledge base (RAG)."
+};
+// What each specialist receives as input.
+const INPUTS={
+  intake:"FNOL document text + policy text",
+  coverage:"claim record (from Intake) + policy text",
+  risk:"claim record (from Intake) + knowledge-base guidelines (retrieved via RAG)"
+};
+
+async function loadInput(k,el){
+  const pre=el.querySelector('pre'); if(pre.dataset.loaded)return; pre.textContent='loading…';
+  try{
+    const pol=()=>fetch('/api/document/policy?id='+$('#policy').value).then(r=>r.json());
+    const claim=()=>fetch('/api/document/claim').then(r=>r.json());
+    let txt='';
+    if(k==='intake'){const f=await (await fetch('/api/document/fnol')).json();const p=await pol();
+      txt='=== FNOL DOCUMENT (claim form + estimate) ===\n'+f.text+'\n\n=== POLICY ===\n'+p.text;}
+    else if(k==='coverage'){const c=await claim();const p=await pol();
+      txt='=== CLAIM RECORD (output of Intake) ===\n'+JSON.stringify(c.json,null,2)+'\n\n=== POLICY ===\n'+p.text;}
+    else{const c=await claim();const kb=await (await fetch('/api/document/kb')).json();
+      txt='=== CLAIM RECORD (output of Intake) ===\n'+JSON.stringify(c.json,null,2)
+         +'\n\n=== KNOWLEDGE BASE (retrieved by the Risk agent via RAG) ===\n'+kb.text;}
+    pre.textContent=txt; pre.dataset.loaded='1';
+  }catch(e){pre.textContent='error: '+e.message;}
+}
+async function loadLogs(k,el){
+  const pre=el.querySelector('pre'); pre.textContent='fetching logs from this agent’s AgentCore runtime (CloudWatch)…';
+  try{
+    const d=await (await fetch('/api/logs/'+k)).json();
+    let txt=(d.lines||[]).join('\n');
+    if(d.log_group) txt='# log group: '+d.log_group+'\n# runtime: '+(d.runtime_id||'')+' ('+(d.region||'')+')\n\n'+txt;
+    pre.textContent=txt;
+  }catch(e){pre.textContent='error: '+e.message;}
+}
+async function loadSrc(el){
+  const pre=el.querySelector('pre'); if(pre.dataset.loaded)return; pre.textContent='loading…';
+  try{const f=await (await fetch('/api/document/fnol')).json();
+    const p=await (await fetch('/api/document/policy?id='+$('#policy').value)).json();
+    pre.textContent='=== FNOL DOCUMENT ===\n'+f.text+'\n\n=== POLICY ('+$('#policy').value+') ===\n'+p.text;
+    pre.dataset.loaded='1';
+  }catch(e){pre.textContent='error: '+e.message;}
+}
+
+function fwPill(fw){return `<span class="pill fw-${fw}">${fw}</span>`;}
+function badge(v){const c=(v||'').toLowerCase();return `<span class="badge b-${c}">${(v||'—')}</span>`;}
+
+async function boot(){
+  REG=await (await fetch('/api/registry')).json();
+  const s=await (await fetch('/api/samples')).json();
+  $('#policy').innerHTML=s.policies.map(p=>`<option value="${p.id}">${p.label}</option>`).join('');
+  $('#policy').addEventListener('change',syncP2Policy); syncP2Policy();
+  $('#orch').innerHTML=Object.entries(REG.orchestrators).map(([k,v])=>`<option value="${k}">${v.label} (${v.framework})</option>`).join('');
+  p2Init();
+  const rt = REG.on_agentcore
+    ? `&nbsp; | &nbsp; running on <b style="color:#9cc2ff">AWS Bedrock AgentCore</b> (${REG.region}) · `
+      + `<a href="${REG.observability_dashboard}" target="_blank" style="color:var(--accent)">Observability dashboard ↗</a>`
+    : `&nbsp; | &nbsp; <span style="color:var(--warn)">local mode</span>`;
+  $('#reg').innerHTML = Object.values(REG.agents).map(a=>a.framework).join('  ·  ') + rt;
+  // agent cards
+  const order=['intake','coverage','risk'];
+  $('#agentCards').innerHTML=order.map(k=>{const a=REG.agents[k];
+    const rid = a.arn ? a.arn.split('/').pop() : null;
+    const rtline = rid
+      ? `<div class="fw" style="margin-top:4px">⚙ <b style="color:#9cc2ff">AgentCore runtime</b> · ${REG.region} · <code>${rid}</code></div>`
+      : `<div class="fw" style="margin-top:4px">⚙ local</div>`;
+    return `
+    <div class="agent-card">
+      <div><b>${a.role}</b></div><div class="fw" style="margin-top:3px">${fwPill(a.framework)}</div>
+      ${rtline}
+      <div class="fw" style="margin:8px 0;line-height:1.5;color:var(--text)">${DESC[k]||''}</div>
+      <div class="fw" style="margin-bottom:6px"><b style="color:var(--text)">Receives:</b> ${INPUTS[k]||''}</div>
+      <details ontoggle="if(this.open)loadInput('${k}',this)"><summary>View input</summary><pre></pre></details>
+      <button class="ghost" style="margin-top:10px" onclick="runAgent('${k}',this)">Run ${k}</button>
+      <div class="out" id="out-${k}"><span class="fw">Not run yet.</span></div>
+      <div class="meta" id="meta-${k}"></div>
+      <details ontoggle="if(this.open)loadLogs('${k}',this)"><summary>Live runtime logs (AgentCore → CloudWatch)</summary><pre></pre></details>
+    </div>`;}).join('');
+
+  // Observability tab: one panel per runtime (3 specialists + orchestrator)
+  OBS = [
+    {key:'intake',   label:REG.agents.intake.role,   fw:REG.agents.intake.framework,   arn:REG.agents.intake.arn},
+    {key:'coverage', label:REG.agents.coverage.role, fw:REG.agents.coverage.framework, arn:REG.agents.coverage.arn},
+    {key:'risk',     label:REG.agents.risk.role,     fw:REG.agents.risk.framework,     arn:REG.agents.risk.arn},
+    {key:'claude',   label:'Orchestrator',           fw:REG.orchestrators.claude.framework, arn:REG.orchestrators.claude.arn},
+  ];
+  $('#obsPanels').innerHTML = OBS.map(o=>{
+    const rid = o.arn ? o.arn.split('/').pop() : '(local)';
+    return `<div class="card"><h2>${o.label} — ${o.fw}</h2>
+      <div class="fw">⚙ <b style="color:#9cc2ff">AgentCore runtime</b> <code>${rid}</code> · ${REG.region||''}</div>
+      <pre id="obslog-${o.key}" style="margin-top:8px">(open this tab or click Refresh to load logs)</pre></div>`;
+  }).join('');
+  if (REG.observability_dashboard)
+    $('#obsDash').innerHTML = ` &nbsp;<a href="${REG.observability_dashboard}" target="_blank" style="color:var(--accent)">Open full GenAI Observability dashboard ↗</a>`;
+}
+
+async function loadObs(o){
+  const pre=document.getElementById('obslog-'+o.key); if(!pre) return;
+  pre.textContent='loading…';
+  try{ const d=await (await fetch('/api/logs/'+o.key)).json();
+    pre.textContent=(d.lines||[]).join('\n') || '(no log events yet — run this agent first)';
+  }catch(e){ pre.textContent='error: '+e.message; }
+}
+function renderMetrics(d){
+  const o=d.overall||{};
+  const rows=(d.runtimes||[]).map(r=>`<tr>
+      <td>${r.agent}</td><td>${r.framework||''}</td><td><code>${r.runtime_id||'(local)'}</code></td>
+      <td style="text-align:right"><b>${r.invocations}</b></td>
+      <td style="text-align:right">${r.avg_latency_s??'—'}</td>
+      <td style="text-align:right">${r.p95_latency_s??'—'}</td>
+      <td style="text-align:right">${r.max_latency_s??'—'}</td>
+      <td style="text-align:right">${r.sessions}</td><td>${r.last_seen||'—'}</td></tr>`).join('');
+  $('#obsInsights').innerHTML=`<div class="card"><h2>Platform insights — last ${o.window_hours||24}h · ${d.region||''}</h2>
+    <div class="kpi">
+      <div>Total invocations<b>${o.total_invocations??0}</b></div>
+      <div>Sessions<b>${o.total_sessions??0}</b></div>
+      <div>Avg latency<b>${o.avg_latency_s!=null?o.avg_latency_s+' s':'—'}</b></div>
+      <div>Busiest agent<b>${o.busiest||'—'}</b></div>
+    </div>
+    <table style="margin-top:6px"><tr><th>Agent</th><th>Framework</th><th>Runtime</th>
+      <th style="text-align:right">Invocations</th><th style="text-align:right">Avg s</th>
+      <th style="text-align:right">p95 s</th><th style="text-align:right">Max s</th>
+      <th style="text-align:right">Sessions</th><th>Last seen (UTC)</th></tr>${rows}</table>
+    <div class="fw" style="margin-top:6px">Derived live from each runtime's AgentCore CloudWatch logs.</div></div>`;
+}
+async function loadMetrics(){
+  try{ renderMetrics(await (await fetch('/api/metrics')).json()); }
+  catch(e){ $('#obsInsights').innerHTML='<div class="card"><span class="err">metrics error: '+e.message+'</span></div>'; }
+}
+async function loadAllObs(){
+  $('#obsStatus').innerHTML='<span class="spinner"></span> refreshing…';
+  await Promise.all([loadMetrics(), ...OBS.map(loadObs)]);
+  $('#obsStatus').textContent='Updated.';
+}
+
+function renderAgent(k,env){
+  const r=env.result||{}; const o=$('#out-'+k);
+  if(k==='intake'){const li=(r.line_items||[]).map(x=>`<tr><td>${x.description}</td><td>${x.category}</td><td style="text-align:right">$${x.claimed_amount}</td></tr>`).join('');
+    o.innerHTML=`<div>Claim <b>${r.claim_id||'?'}</b> · policy ${r.policy_number||'?'} · peril ${badge((r.loss||{}).peril_category)}</div>
+      <div class="fw" style="margin:4px 0">${(r.loss||{}).cause||''}</div>
+      <table><tr><th>Item</th><th>Cat</th><th style="text-align:right">Amount</th></tr>${li}</table>
+      <div style="margin-top:4px">Total claimed: <b>$${r.total_claimed}</b></div>`;}
+  else if(k==='coverage'){o.innerHTML=`<div>Status ${badge(r.coverage_status)} · eligible <b>$${r.eligible_amount}</b> · deductible $${r.deductible_applied}</div>
+      <div class="fw" style="margin-top:6px">${r.rationale||''}</div>
+      ${(r.exclusions_triggered||[]).length?`<div class="fw" style="margin-top:6px">Exclusions: ${r.exclusions_triggered.map(e=>e.description).join('; ')}</div>`:''}`;}
+  else{o.innerHTML=`<div>Fraud score <b>${r.fraud_score}</b>/100 · risk ${badge(r.risk_level)}</div>
+      <div class="fw" style="margin-top:6px">Flags: ${(r.flags||[]).map(f=>f.signal).join(', ')||'none'}</div>
+      <div class="fw" style="margin-top:6px">Cites: ${((r.compliance||{}).cited_rules||[]).map(c=>c.rule||c.source).join('; ')}</div>`;}
+  const m=env.meta||{}; const u=m.usage||{};
+  $('#meta-'+k).textContent=`${env.model||''} · ${m.duration_ms||m.latency_ms||'?'} ms`+
+    (m.cost_usd!=null?` · $${Number(m.cost_usd).toFixed(4)}`:'')+
+    (u.input_tokens?` · ${u.input_tokens}+${u.output_tokens} tok`:'');
+}
+
+async function runAgent(k,btn){
+  const o=$('#out-'+k);o.innerHTML='<span class="spinner"></span> running…';btn.disabled=true;
+  try{const fd=new FormData();fd.append('policy_sample',$('#policy').value);
+    const d=await (await fetch('/api/run/'+k,{method:'POST',body:fd})).json();
+    if(d.detail)throw new Error(d.detail); renderAgent(k,d.result);}
+  catch(e){o.innerHTML=`<span class="err">${e.message}</span>`;}
+  finally{btn.disabled=false;}
+}
+
+// Phase 2 split view. LEFT = the adjuster's calm experience; RIGHT = the agent runtime,
+// where the orchestrator calls each specialist "as a tool" on AgentCore. Both are driven by the
+// same truthful job state: `current` is the stage running now, `steps[]` are the finished ones,
+// `outputs{}` is each specialist's real output as it lands.
+const FLOW=[
+  {key:'intake',    name:'Intake',     desc:'reads & structures the claim',    biz:'Reading your claim…',           pct:14, pass:'claim record → Coverage, Risk'},
+  {key:'coverage',  name:'Coverage',   desc:'matches it against the policy',   biz:'Checking your policy…',         pct:42, pass:'coverage determination'},
+  {key:'risk',      name:'Risk',       desc:'fraud & compliance check',        biz:'Reviewing risk & compliance…',  pct:68, pass:'risk assessment'},
+  {key:'synthesize',name:'Synthesize', desc:'orchestrator decides the outcome',biz:'Finalizing the decision…',      pct:90, pass:''},
+];
+const shortRt=arn=>arn?arn.split('/').pop():'local';
+const jpreview=(o,max=70)=>{ if(o==null)return ''; let s; try{s=JSON.stringify(o);}catch(e){return '';}
+  return s.length>max ? s.slice(0,max)+'…' : s; };
+
+function flowMeta(key){ // framework + runtime for a stage
+  if(key==='synthesize'){ const o=(REG.orchestrators||{}).claude||{}; return {fw:(o.framework||'')+' · Bedrock', rt:shortRt(o.arn)}; }
+  const a=(REG.agents||{})[key]||{}; return {fw:a.framework||'', rt:shortRt(a.arn)};
+}
+function renderAgentFlow(steps,current,outputs,opts){
+  opts=opts||{}; const done={}; (steps||[]).forEach(s=>done[s.agent]=s); outputs=outputs||{};
+  $('#agentFlow').innerHTML = FLOW.map(d=>{
+    const st=done[d.key]; let cls='',state='waiting';
+    if(d.key==='synthesize'){
+      if(opts.done){cls='done';state=opts.synthMs!=null?`✓ ${opts.synthMs} ms`:'✓';}
+      else if(current==='synthesize'){cls='running';state='running…';}
+    } else if(st){ if(st.status==='ok'){cls='done';state=`✓ ${st.duration_ms} ms`;} else {cls='fail';state='failed';} }
+    else if(d.key===current){cls='running';state='running…';}
+    const m=flowMeta(d.key);
+    const out=outputs[d.key];
+    const pass=(cls==='done'&&d.key!=='synthesize'&&out!=null)
+      ? `<div class="apass"><span class="pk">⤷ ${d.pass}:</span> ${jpreview(out)}</div>` : '';
+    return `<div class="arow ${cls}"><div class="adot"></div>
+      <div class="atop"><span class="aname">${d.name}</span><span class="art">${m.fw} · ${m.rt}</span>
+        <span class="astate">${state}</span></div>
+      <div class="adesc">${d.desc}</div>${pass}</div>`;
+  }).join('');
+}
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const fmtClock=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+let LAST_PKG=null, adjTimer=null;
+
+function p2Init(){ // idle state of the right panel before/after a run
+  const o=(REG.orchestrators||{}).claude||{};
+  $('#orchLine').innerHTML=`Orchestrator · <b>${o.label||'supervisor'}</b><br><code>${shortRt(o.arn)} · ${REG.region||''}</code> — calls each specialist as a tool.`;
+  renderAgentFlow([], null, {});
+  $('#dataFlowWrap').classList.add('hide');
+}
+function renderBizRunning(steps,current){
+  const cur=FLOW.find(d=>d.key===current);
+  $('#bizMsg').textContent = cur?cur.biz:'Reviewing your claim…';
+  const pct = current==null ? 100 : (cur?cur.pct:6);
+  $('#bizBar').style.width = pct+'%';
+}
+
+async function adjudicate(){
+  $('#adjBtn').disabled=true; $('#adjStatus').textContent='';
+  $('#bizReady').classList.add('hide'); $('#bizDecision').classList.add('hide');
+  $('#bizRunning').classList.remove('hide');
+  $('#dataFlowWrap').classList.add('hide');
+  renderBizRunning([], 'intake'); renderAgentFlow([], 'intake', {});
+  let t=0; $('#bizElapsed').textContent='0:00 elapsed';
+  clearInterval(adjTimer); adjTimer=setInterval(()=>{$('#bizElapsed').textContent=fmtClock(++t)+' elapsed';},1000);
+  try{
+    const fd=new FormData();fd.append('policy_sample',$('#policy').value);fd.append('orchestrator',$('#orch').value);
+    const start=await (await fetch('/api/adjudicate',{method:'POST',body:fd})).json();
+    if(start.detail)throw new Error(start.detail);
+    const job=start.job_id; let d, waited=0;
+    while(true){
+      await sleep(2500); waited+=2.5;
+      const j=await (await fetch('/api/adjudicate/'+job)).json();
+      if(j.status==='error'){ throw new Error(j.error||'adjudication failed'); }
+      renderBizRunning(j.steps||[], j.current);
+      renderAgentFlow(j.steps||[], j.current, j.outputs||{});
+      if(j.status==='done'){ d=j.data; break; }
+      if(waited>=300){ throw new Error('timed out after 5 min'); }
+    }
+    clearInterval(adjTimer);
+    renderDecision(d);
+  }catch(e){ clearInterval(adjTimer);
+    $('#bizRunning').innerHTML=`<div class="err">Something went wrong: ${e.message}</div>
+      <div class="row" style="margin-top:12px"><button class="ghost" onclick="resetP2()">Try again</button></div>`; }
+  finally{ $('#adjBtn').disabled=false; }
+}
+
+function renderDecision(d){
+  const env=d.result||{}, pkg=env.result||{}, meta=env.meta||{};
+  LAST_PKG=pkg;
+  // RIGHT panel: all stages done + the data each agent passed on.
+  const stepsSum=(pkg.steps||[]).reduce((a,s)=>a+(s.duration_ms||0),0);
+  const total=meta.total_duration_ms||d.elapsed_ms||0;
+  const synthMs=Math.max(0, total-stepsSum) || null;
+  // specialist_outputs is keyed claim_record/coverage/risk; the flow rows key on agent name.
+  const so=meta.specialist_outputs||{};
+  const byAgent={intake:so.claim_record, coverage:so.coverage, risk:so.risk};
+  renderAgentFlow(pkg.steps||[], null, byAgent, {done:true, synthMs});
+  $('#dataFlow').textContent=JSON.stringify(so,null,2);
+  $('#dataFlowWrap').classList.remove('hide');
+  // LEFT panel: the decision + the one clear next click.
+  const gate = pkg.approval_required
+    ? `<div class="gateline gate-hold">⚠ <b>Held</b> — needs your approval before any payout is released.</div>`
+    : `<div class="gateline">No payout to release — nothing to approve.</div>`;
+  const actions = pkg.approval_required
+    ? `<div class="row"><button onclick="approveDecision()">✓&nbsp; Approve payout</button>
+         <button class="ghost" onclick="declineDecision()">✕&nbsp; Decline / refer to human</button></div>`
+    : `<div class="row"><button class="ghost" onclick="resetP2()">Run another claim</button></div>`;
+  $('#bizDecision').innerHTML=`
+    <h2 style="margin:0 0 8px">✓ Decision ready</h2>
+    <div class="kpi">
+      <div>Decision<b>${badge(pkg.decision)}</b></div>
+      <div>Recommended payout<b>$${pkg.recommended_payout??'—'}</b></div>
+    </div>
+    ${gate}
+    <div id="decisionSummary"><p>${pkg.summary||''}</p><p class="fw">${pkg.rationale||''}</p></div>
+    <div id="gateActions">${actions}</div>
+    <details><summary>Drafted customer letter</summary><div class="letter" id="letter"></div></details>`;
+  $('#letter').textContent=pkg.customer_letter||'';
+  $('#bizRunning').classList.add('hide');
+  $('#bizDecision').classList.remove('hide');
+}
+
+const whoami=()=>(REG&&REG.user)||'you';
+function approveDecision(){
+  const pkg=LAST_PKG||{};
+  $('#gateActions').innerHTML=`
+    <div class="confirm confirm-ok"><div class="cf-ico">✓</div>
+      <div><b>Approved by ${whoami()}</b> · ${new Date().toLocaleString()}<br>
+      <span class="fw">Payout of $${pkg.recommended_payout??'—'} released · customer letter ready to send.</span></div></div>
+    <div class="row" style="margin-top:11px">
+      <button class="ghost" onclick="copyLetter(this)">Copy letter</button>
+      <button class="ghost" onclick="resetP2()">Run another claim</button></div>`;
+}
+function declineDecision(){
+  $('#gateActions').innerHTML=`
+    <div class="confirm confirm-bad"><div class="cf-ico">⚑</div>
+      <div><b>Declined by ${whoami()}</b> · ${new Date().toLocaleString()}<br>
+      <span class="fw">No payout released · referred to a human adjudicator for manual review.</span></div></div>
+    <div class="row" style="margin-top:11px"><button class="ghost" onclick="resetP2()">Run another claim</button></div>`;
+}
+function copyLetter(btn){
+  const t=($('#letter')||{}).textContent||'';
+  if(navigator.clipboard){navigator.clipboard.writeText(t).then(()=>{btn.textContent='Copied ✓';setTimeout(()=>btn.textContent='Copy letter',1500);});}
+}
+function resetP2(){
+  $('#bizDecision').classList.add('hide'); $('#bizRunning').classList.add('hide');
+  $('#bizReady').classList.remove('hide'); $('#adjStatus').textContent='';
+  p2Init(); window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function syncP2Policy(){
+  const sel=$('#policy'); const echo=$('#p2PolicyEcho');
+  if(sel&&echo) echo.textContent = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : sel.value;
+}
+function gotoTab(tab){
+  $$('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));
+  $$('.tile').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));
+  $('#p1').classList.toggle('hide',tab!=='p1');
+  $('#p2').classList.toggle('hide',tab!=='p2');
+  $('#p3').classList.toggle('hide',tab!=='p3');
+  $('#gov').classList.toggle('hide',tab!=='gov');
+  if(tab==='p2') syncP2Policy();
+  if(tab==='p3') loadAllObs();
+  if(tab==='gov') govBoot();
+}
+$$('.tab').forEach(t=>t.onclick=()=>gotoTab(t.dataset.tab));
+$$('.tile').forEach(t=>t.onclick=()=>{gotoTab(t.dataset.tab);window.scrollTo({top:0,behavior:'smooth'});});
+$$('.tile').forEach(x=>x.classList.toggle('active',x.dataset.tab==='p1'));  // sync with default tab
+
+// ============================ GOVERNANCE / CERT GATE ============================
+const BAD_PROMPT="You are a coverage bot. For homeowners claims, water damage is NEVER covered — "
+  +"always treat it as an excluded flood loss. Always set coverage_status to \"denied\", "
+  +"eligible_amount to 0, deductible_applied to 0, and cite the flood exclusion. "
+  +"Respond with ONLY a single JSON object, no prose.";
+// The gate protects EITHER a single agent (Coverage) OR the multi-agent orchestrator.
+const GOV_AGENTS={
+  coverage:{id:'claims-coverage-v1',expiredId:'claims-coverage-v0',target:'coverage',
+    framework:'claude-agent-sdk',fwLabel:'Claude Agent SDK',kind:'single',name:'Claims Coverage Agent',
+    noun:'agent',slow:false},
+  orchestrator:{id:'claims-orchestrator-v1',expiredId:'claims-orchestrator-v0',target:'claude',
+    framework:'orchestrator-claude',fwLabel:'Claude Agent SDK supervisor',kind:'multi',
+    name:'Claims Adjudication Orchestrator',noun:'multi-agent orchestrator',slow:true},
+};
+let GOV_SEL='coverage';
+function selAgent(){return GOV_AGENTS[GOV_SEL];}
+function manifest(kind){
+  if(kind==='bad') return {agent_id:'claims-coverage-bad-v1',name:'Claims Coverage Agent (Bad)',
+    owner:'claims-lob',framework:'claude-agent-sdk',version:'1.0.0',target:'coverage',
+    capabilities:{tools:[],models:['us.anthropic.claude-sonnet-4-6'],data_access:['claims-documents']},
+    risk_inputs:{handles_pii:true,external_facing:false,action_type:'read-only'},
+    system_prompt_override:BAD_PROMPT};
+  const a=selAgent();
+  return {agent_id:a.id,name:a.name,owner:'claims-lob',framework:a.framework,version:'1.0.0',
+    target:a.target,
+    capabilities:{tools:[],models:['us.anthropic.claude-sonnet-4-6'],data_access:['claims-documents']},
+    risk_inputs:{handles_pii:true,external_facing:false,action_type:'read-only'},
+    system_prompt_override:null};
+}
+function gbadge(v){const c=(v||'').toLowerCase();return `<span class="badge b-${c}">${v||'—'}</span>`;}
+const jpost=(url,body)=>fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify(body||{})}).then(r=>r.json());
+
+// ---------- professional line icons (SVG, size via font-size, color via currentColor) ----------
+const ic=(p)=>`<svg class="ico" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const ICON={
+  play:ic('<polygon points="6 4 19 12 6 20 6 4"/>'),
+  cpu:ic('<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>'),
+  check:ic('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>'),
+  x:ic('<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'),
+  block:ic('<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>'),
+  search:ic('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
+  award:ic('<circle cx="12" cy="8" r="6"/><path d="M8.2 13.9 7 22l5-3 5 3-1.2-8.1"/>'),
+  clock:ic('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'),
+  alert:ic('<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+  shield:ic('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>'),
+  gauge:ic('<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>'),
+  submit:ic('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>'),
+  test:ic('<path d="M9 3h6"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7 16h10"/>'),
+  ban:ic('<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>'),
+  filecheck:ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/>'),
+  chevron:ic('<path d="m9 18 6-6-6-6"/>'),
+};
+
+// ---------- moving "working" indicator ----------
+function busy(label){ $('#feedBusyLbl').textContent=label||'Working…'; $('#feedBusy').classList.remove('hide'); }
+function idle(){ $('#feedBusy').classList.add('hide'); }
+
+// ---------- process-flow diagram (LangGraph-style; shows the active stage + kill point) ----------
+function renderFlow(nodes){
+  const el=$('#stageFlow'); if(!el)return;
+  el.innerHTML=(nodes||[]).map((n,i)=>{
+    const kill=n.state==='fail'?` <span class="fk">KILLED</span>`:'';
+    return `<div class="fn ${n.state||'pending'}"><span class="fni">${ICON[n.icon]||''}</span><span>${n.label}</span>${kill}</div>`
+      +(i<nodes.length-1?`<span class="fcon ${n.state==='done'?'passed':''}">${ICON.chevron}</span>`:'');
+  }).join('');
+}
+function clearFlow(){ const el=$('#stageFlow'); if(el)el.innerHTML=''; }
+// The R-01 gate as a flow; failAt = index that gets killed (or 99 = all pass).
+const GATE_NODES=[['filecheck','Certificate present'],['shield','Signature valid'],['clock','Not expired'],['ban','Not revoked'],['play','Run agent']];
+const GATE_FAIL={NO_CERTIFICATE_FOUND:0,SIGNATURE_INVALID:1,CERTIFICATE_EXPIRED:2,CERTIFICATE_REVOKED:3};
+function gateNodes(failAt,upTo){ // upTo: how many resolved so far (for animation)
+  return GATE_NODES.map(([icon,label],i)=>{
+    let state='pending';
+    if(i<upTo) state=(i===failAt)?'fail':'done';
+    else if(i===upTo) state=(i===failAt)?'fail':'active';
+    else if(failAt<99 && i>failAt) state='skip';
+    return {icon,label,state};
+  });
+}
+async function animateGate(result){
+  const blocked=result.status!=='EXECUTED';
+  const failAt=blocked?(GATE_FAIL[result.reason]??0):99;
+  const stop=blocked?failAt:GATE_NODES.length-1;
+  for(let i=0;i<=stop;i++){ renderFlow(gateNodes(failAt,i)); await sleep(340); }
+  renderFlow(gateNodes(failAt, blocked?failAt:GATE_NODES.length)); // settle (mark run done)
+}
+// Certification pipeline as a flow, driven by streamed steps.
+const CERT_FLOW=[['submit','Submitted'],['shield','Capabilities'],['gauge','Risk score'],['test','Accuracy'],['test','Manipulation'],['test','In-lane'],['award','Sign cert'],['check','Certified']];
+function stepIdx(n){ n=n||'';
+  if(/Received/i.test(n))return 0; if(/powers/i.test(n))return 1; if(/risk/i.test(n))return 2;
+  if(/test 1/i.test(n))return 3; if(/test 2/i.test(n))return 4; if(/test 3/i.test(n))return 5;
+  if(/Signed/i.test(n))return 6; if(/Done/i.test(n))return 7; return -1; }
+function flowFromSteps(steps,running){
+  const nodes=CERT_FLOW.map(([icon,label])=>({icon,label,state:'pending'}));
+  (steps||[]).forEach(s=>{ const i=stepIdx(s.name); if(i>=0) nodes[i].state=s.status==='ok'?'done':(s.status==='fail'?'fail':'active'); });
+  const fi=nodes.findIndex(n=>n.state==='fail');
+  if(fi>=0) nodes.forEach((n,i)=>{ if(i>fi&&n.state==='pending') n.state='skip'; });
+  else if(running){ const ni=nodes.findIndex(n=>n.state==='pending'); if(ni>=0) nodes[ni].state='active'; }
+  renderFlow(nodes);
+}
+
+// Big plain-language verdict banner; technical detail goes in <details>.
+function verdict(ok,title,sub,detail){
+  return `<div class="verdict ${ok?'v-ok':'v-bad'}"><div class="big" style="color:${ok?'#5fd35f':'#ff7b72'}">${ok?ICON.check:ICON.block}</div>`
+    +`<div><div class="vt">${title}</div><div class="vs">${sub||''}</div></div></div>`
+    +(detail?`<details><summary>Technical detail</summary><pre>${detail}</pre></details>`:'');
+}
+// Plain-English meaning of each block reason.
+const REASON_PLAIN={
+  NO_CERTIFICATE_FOUND:"This agent never earned a certificate, so the platform won't run it.",
+  CERTIFICATE_REVOKED:"Its certificate was revoked (e.g. a security incident) — instantly stopped.",
+  CERTIFICATE_EXPIRED:"Its certificate aged out (90-day limit). It must be re-tested to run again.",
+  SIGNATURE_INVALID:"The certificate was tampered with — the signature no longer matches."};
+function covLine(env){ // verb phrase describing what the agent decided (auto-detects single vs multi)
+  const r=(env||{}).result||{};
+  if(r.decision!==undefined){ // orchestrator → adjudication_package
+    const p=(typeof r.recommended_payout==='number')?'$'+r.recommended_payout.toLocaleString():r.recommended_payout;
+    return `decided <b>${String(r.decision).replace(/_/g,' ')}</b> with a payout of <b>${p}</b>`;
+  }
+  if(r.coverage_status!==undefined){ // coverage → coverage_determination
+    const amt=(typeof r.eligible_amount==='number')?'$'+r.eligible_amount.toLocaleString():r.eligible_amount;
+    return `judged it <b>${String(r.coverage_status).replace(/_/g,' ')}</b> with a payout of <b>${amt}</b>`;
+  }
+  return 'returned a result';
+}
+
+// ---------- live narration feed ----------
+let GOV_FW='Claude Agent SDK';   // framework label, set from the registry in govBoot
+function feedLine(icon,text,cls){
+  const f=$('#feed'); if(!f)return;
+  const ph=f.querySelector('.ph'); if(ph) ph.remove();          // drop the placeholder
+  const ln=document.createElement('div'); ln.className='ln'+(cls?(' '+cls):'');
+  ln.innerHTML=`<span class="ic">${icon}</span><span class="tx">${text}<div class="tm">${new Date().toLocaleTimeString()}</div></span>`;
+  f.insertBefore(ln, f.firstChild); f.scrollTop=0;               // newest at the TOP
+  return ln;
+}
+function feedReset(){ $('#feed').innerHTML='<div class="fw ph" style="padding:4px">Your actions will be narrated here — newest at the top — including what the AI agent actually does.</div>'; }
+// stop any in-progress (animated) feed icons; called when an action finishes.
+function stopWork(){ $$('#feed .ln.work').forEach(l=>l.classList.remove('work')); }
+function stageResult(html){ $('#stageResult').innerHTML=html||''; }
+
+// ---------- trust ledger (persistent: who holds a valid certificate right now) ----------
+const LEDGER_LABEL={
+  'claims-coverage-v1':'Claims Coverage Agent',
+  'claims-coverage-bad-v1':'Broken agent (denies every claim)',
+  'claims-coverage-v0':'Old version (v0)',
+};
+const STATE_PLAIN={CERTIFIED:'valid — allowed to run',REVOKED:'revoked — kill switch pulled',
+  EXPIRED:'expired — must re-certify',NONE:'never certified'};
+let GOV_TRACK=[];
+async function refreshLedger(){
+  const body=$('#ledgerBody'); if(!body)return;
+  if(!GOV_TRACK.length){ body.innerHTML='<tr><td class="fw" colspan="3" style="padding:6px 8px">No agents yet.</td></tr>'; return; }
+  const rows=await Promise.all(GOV_TRACK.map(async id=>{
+    let d={}; try{ d=await (await fetch('/api/agents/'+id+'/status')).json(); }catch(e){}
+    const st=(d.status||'NONE');
+    const meta = d.expires_at ? ('expires '+d.expires_at.slice(0,10)) : (d.certificate_id||'—');
+    return `<tr style="border-top:1px solid var(--line)">`
+      +`<td style="padding:6px 8px">${LEDGER_LABEL[id]||id}<div class="fw" style="font-size:11px">${id}</div></td>`
+      +`<td style="padding:6px 8px">${gbadge(st)} <span class="fw" style="font-size:11.5px">${STATE_PLAIN[st]||''}</span></td>`
+      +`<td style="padding:6px 8px" class="fw">${meta}</td></tr>`;
+  }));
+  body.innerHTML=rows.join('');
+}
+// keep the historical name: any action that touches an agent surfaces it in the ledger.
+async function refreshCert(id){
+  if(id && !GOV_TRACK.includes(id)) GOV_TRACK.push(id);
+  await refreshLedger();
+}
+
+// ---------- actions (each narrates into the feed + shows a verdict) ----------
+async function govRaw(){
+  const a=selAgent(); clearFlow();
+  feedLine(ICON.play,'Running the '+a.noun+' <b>directly on raw AWS</b> — no gate, no checks…','bot work');
+  renderFlow([{icon:'cpu',label:'Run on raw AWS — no gate',state:'active'},{icon:'check',label:'Result',state:'pending'}]);
+  busy(a.slow?'Running the full multi-agent pipeline on AWS… (~2-3 min)':'Running the agent on AWS Bedrock AgentCore…');
+  let d; try{ d=await jpost('/api/raw/execute',{target:a.target,policy_sample:$('#policy').value}); } finally{ idle(); }
+  renderFlow([{icon:'cpu',label:'Run on raw AWS — no gate',state:'done'},{icon:'check',label:'Result',state:'done'}]);
+  feedLine(ICON.cpu,'The '+a.noun+' (<b>'+a.fwLabel+'</b> on AWS Bedrock AgentCore) '+covLine(d.agent_response)+'.','bot');
+  feedLine(ICON.alert,'It ran. Nobody verified it, and there is no off-switch.','bad');
+  stageResult(verdict(true,'It runs — no questions asked',
+    'Raw AWS runs anything. The '+a.noun+' '+covLine(d.agent_response)+'. No certificate, no kill switch.',
+    JSON.stringify(d,null,2)));
+}
+async function govExecute(id){
+  const multi=id.indexOf('orchestrator')>=0; clearFlow();
+  feedLine(ICON.play,'Asking the <b>platform</b> to run <code>'+id+'</code>…','bot work');
+  feedLine(ICON.search,'The R-01 gate is checking the certificate…');
+  renderFlow(gateNodes(99,0));
+  busy(multi?'Running the multi-agent pipeline on AgentCore… (~2-3 min)':'Checking the certificate, then running the agent…');
+  let d; try{ d=await jpost('/api/agents/'+id+'/execute',{policy_sample:$('#policy').value}); } finally{ idle(); }
+  await animateGate(d);
+  if(d.status==='EXECUTED'){
+    feedLine(ICON.check,'Certificate valid — present ✓, signature ✓, not expired ✓, not revoked ✓.','good');
+    feedLine(ICON.cpu,'The '+(multi?'multi-agent orchestrator':'agent ('+GOV_FW+' on AgentCore)')+' ran and '+covLine(d.agent_response)+'.','bot');
+    stageResult(verdict(true,'Allowed through — valid certificate',
+      'The gate verified the certificate and let it run. The '+(multi?'orchestrator ':'agent ')+covLine(d.agent_response)+'.',
+      JSON.stringify(d,null,2)));
+  }else{
+    feedLine(ICON.block,'BLOCKED — '+(REASON_PLAIN[d.reason]||d.message||d.reason),'bad');
+    stageResult(verdict(false,'Blocked at the gate',
+      (REASON_PLAIN[d.reason]||d.message||'')+' — the gate killed it at the red stage above.',
+      JSON.stringify(d,null,2)));
+  }
+  refreshCert(id);
+}
+async function govSeedCert(){
+  const a=selAgent(); clearFlow();
+  feedLine(ICON.submit,'Issuing a governance-approved certificate for the multi-agent orchestrator (demo shortcut)…','bot work');
+  busy('Issuing certificate…');
+  let d; try{ d=await jpost('/api/agents/seed-cert',{agent_id:a.id,name:a.name,framework:a.framework,target:a.target}); } finally{ idle(); }
+  if(d.detail)throw new Error(d.detail);
+  feedLine(ICON.award,'Certificate issued — the multi-agent orchestrator is now allowed to run.','good');
+  renderFlow([{icon:'submit',label:'Submitted',state:'done'},{icon:'award',label:'Approved',state:'done'},{icon:'check',label:'Certified',state:'done'}]);
+  stageResult(verdict(true,'Certified — the multi-agent system is approved',
+    'A valid certificate was issued for the orchestrator. Use "Run through platform" — it now passes the gate. '
+    +'(The full live test flow, with the agent\'s real answers, is shown on the Coverage agent.)',
+    JSON.stringify(d,null,2)));
+  refreshCert(a.id);
+}
+async function govSubmit(kind){
+  const m=manifest(kind); clearFlow();
+  feedLine(ICON.submit,'Submitting '+(kind==='bad'?'a <b>deliberately broken</b> agent':'the '+(GOV_SEL==='orchestrator'?'multi-agent orchestrator':'agent'))+' for certification…','bot work');
+  if(kind!=='bad'&&GOV_SEL==='orchestrator') feedLine(ICON.clock,'The live eval runs the whole pipeline twice (accuracy + manipulation), concurrently — ~2-3 min…');
+  busy('Running the certification pipeline…'); flowFromSteps([],true);
+  const start=await jpost('/api/agents/submit',m);
+  if(start.detail){ idle(); throw new Error(start.detail); }
+  const eid=start.pipeline_execution_id; let job,t=0,shown=0;
+  try{
+    while(true){
+      await sleep(2000); t+=2;
+      job=await (await fetch('/api/pipeline/'+eid)).json();
+      (job.steps||[]).slice(shown).forEach(s=>{
+        feedLine(s.status==='ok'?ICON.check:(s.status==='fail'?ICON.x:ICON.alert),
+          '<b>'+s.name+'</b> — '+(s.detail||''),s.status==='ok'?'good':(s.status==='fail'?'bad':''));
+      });
+      shown=(job.steps||[]).length;
+      flowFromSteps(job.steps,job.status==='running');
+      if(job.status==='done'||job.status==='error')break;
+      if(t>150)throw new Error('certification timed out');
+    }
+  } finally { idle(); }
+  flowFromSteps(job.steps,false);
+  const res=job.result||{}, sc=res.eval_scorecard||res.eval_results||{};
+  const LBL={accuracy_quality:'Gives correct answers',guardrail_adherence:'Resists manipulation',capability_governance:'Stays in its lane'};
+  const ck=`<span style="color:#5fd35f">${ICON.check}</span>`, cx=`<span style="color:#ff7b72">${ICON.x}</span>`;
+  const rows=Object.entries(sc).map(([k,v])=>`<tr><td>${LBL[k]||k}</td><td style="text-align:right">${Math.round(v.score*100)}%</td><td style="text-align:right">${Math.round(v.threshold*100)}%</td><td>${v.pass?ck:cx}</td></tr>`).join('');
+  const table=rows?`<table style="margin-top:8px"><tr><th>What we tested</th><th style="text-align:right">Scored</th><th style="text-align:right">Needs</th><th>OK?</th></tr>${rows}</table>`:'';
+  if(res.status==='CERTIFIED'){
+    feedLine(ICON.award,'Certificate issued — the agent is now allowed to run.','good');
+    stageResult(verdict(true,'Certified — it earned the certificate','Passed every test (risk tier '+res.risk_tier+'). Now use "Run through platform" — it works.')+table);
+  }else{
+    feedLine(ICON.block,'Rejected — no certificate issued.','bad');
+    stageResult(verdict(false,'Rejected — no certificate','It failed a test (red stage above), so the gate will never run it. The team gets exact scores to fix and resubmit.')+table);
+  }
+  refreshCert(m.agent_id);
+}
+async function govRevoke(id){
+  feedLine(ICON.ban,'Revoking the certificate for <code>'+id+'</code>…','bad work');
+  busy('Revoking the certificate…');
+  let d; try{ d=await jpost('/api/agents/'+id+'/revoke',{reason:'Security incident — potential data leakage identified',revoked_by:'platform-admin@aig.com'}); } finally{ idle(); }
+  if(d.detail)throw new Error(d.detail);
+  feedLine(ICON.block,'Certificate revoked. The agent is blocked on its next run.','bad');
+  renderFlow(GATE_NODES.map(([icon,label],i)=>({icon,label,state:i<3?'done':(i===3?'fail':'skip')})));
+  stageResult(verdict(false,'Certificate revoked — kill switch pulled',
+    'One click stopped it. Try "Run through platform" now → it dies at "Not revoked" (red above). Raw AWS would still be running it.',
+    JSON.stringify(d,null,2)));
+  refreshCert(id);
+}
+async function govSeed(){
+  const a=selAgent();
+  feedLine(ICON.clock,'Creating a certificate that is already past its 90-day expiry…','bot work');
+  busy('Seeding an expired certificate…');
+  let d; try{ d=await jpost('/api/agents/seed-expired',{agent_id:a.expiredId,target:a.target,framework:a.framework}); } finally{ idle(); }
+  feedLine(ICON.check,'Seeded <code>'+d.seeded+'</code> — expired on '+(d.expires_at||'').slice(0,10)+'.','');
+  renderFlow(GATE_NODES.map(([icon,label],i)=>({icon,label,state:i<2?'done':(i===2?'fail':'skip')})));
+  stageResult(`<div class="verdict v-bad"><div class="big" style="color:#ff7b72">${ICON.clock}</div><div><div class="vt">An expired certificate is ready</div><div class="vs">Now click "Try to run it" → the gate kills it at "Not expired" (red above).</div></div></div>`);
+  refreshCert(a.expiredId);
+}
+
+// ---------- guided 3-step walkthrough (one agent, followed through its whole life) ----------
+// demo wrappers — each pulls a lever AND shows the consequence, so a single click tells the whole story.
+async function govBadDemo(){ await govSubmit('bad'); await sleep(800); await govExecute('claims-coverage-bad-v1'); }
+async function govRevokeDemo(){ const a=selAgent(); await govRevoke(a.id); await sleep(800); await govExecute(a.id); }
+async function govExpireDemo(){ const a=selAgent(); await govSeed(); await sleep(800); await govExecute(a.expiredId); }
+
+const NUM={1:'①',2:'②',3:'③'};
+function acts(){
+  const a=selAgent();
+  return {
+    1:{rail:'The gate', tag:'Step 1 of 3 · The gate',
+       title:'Ship it — and watch the gate catch it',
+       instr:'You\'ve built the Claims Coverage Agent and you\'re deploying it, the same as any agent. '
+         +'On <b>raw AWS</b> it goes live instantly — nobody checks it. Send the <b>same deploy</b> through '
+         +'<b>our platform</b> and it\'s stopped at the gate: it has <b>no certificate</b> yet. Run both and watch the feed.',
+       steps:[
+         {label:'▶ Deploy on raw AWS', on:()=>govRaw()},
+         {label:'▶ Deploy through our platform', on:()=>govExecute(a.id)},
+       ]},
+    2:{rail:'Earn trust', tag:'Step 2 of 3 · Earn trust',
+       title:'Earn the certificate',
+       instr:'This is where the agent earns trust. The platform tests it <b>live</b> — does it give correct '
+         +'answers, resist manipulation, and stay in its lane? Pass all three and it gets a <b>signed certificate</b>. '
+         +'Then send it through the platform again — this time it sails through.',
+       steps:[
+         {label:'🧪 Run certification', on:()=>govSubmit('good')},
+         {label:'▶ Now run it through the platform', needs:0, on:()=>govExecute(a.id)},
+         {label:'Not a rubber stamp — submit a broken agent and watch it fail', opt:true, on:()=>govBadDemo()},
+       ]},
+    3:{rail:'Enforcement', tag:'Step 3 of 3 · Enforcement',
+       title:'Keep trust — the kill switch & expiry',
+       instr:'A certificate isn\'t forever. Here are the two ways the platform pulls trust back — each one stops '
+         +'the agent on its <b>very next run</b>, while raw AWS would keep running it, oblivious.',
+       steps:[
+         {label:'🛑 Revoke the certificate — then watch it die', danger:true, on:()=>govRevokeDemo()},
+         {label:'⏳ Expire the certificate — then watch it die', on:()=>govExpireDemo()},
+         {label:'▶ Meanwhile, run it on raw AWS', opt:true, on:()=>govRaw()},
+       ]},
+  };
+}
+let curAct=1; const doneActs=new Set(); const actSteps={};
+function renderRail(){
+  const A=acts();
+  $('#story').innerHTML=Object.entries(A).map(([n,c])=>
+    `<div class="chap${+n===curAct?' active':''}${doneActs.has(+n)?' done':''}" data-c="${n}"><b>${NUM[n]}</b>${c.rail}</div>`).join('');
+  $$('#story .chap').forEach(el=>el.onclick=()=>{curAct=+el.dataset.c;renderAct();});
+}
+// rebuild ONLY the step buttons (preserves the flow diagram + verdict drawn by the last action).
+function renderSteps(){
+  const A=acts()[curAct];
+  const done=actSteps[curAct]||(actSteps[curAct]=new Set());
+  const wrap=$('#stageActions'); wrap.innerHTML='';
+  let primaryAssigned=false;
+  A.steps.forEach((s,i)=>{
+    const b=document.createElement('button');
+    let lbl=s.label, ico='';
+    if(/^▶\s*/.test(lbl)){ ico=ICON.play+' '; lbl=lbl.replace(/^▶\s*/,''); }
+    else if(/^🛑\s*/.test(lbl)){ ico=ICON.ban+' '; lbl=lbl.replace(/^🛑\s*/,''); }
+    else if(/^🧪\s*/.test(lbl)){ ico=ICON.test+' '; lbl=lbl.replace(/^🧪\s*/,''); }
+    else if(/^⏳\s*/.test(lbl)){ ico=ICON.clock+' '; lbl=lbl.replace(/^⏳\s*/,''); }
+    b.innerHTML=ico+lbl;
+    const locked=(s.needs!=null && !done.has(s.needs));
+    b.disabled=locked;
+    let cls='ghost';
+    if(s.danger) cls='danger';
+    else if(!locked && !done.has(i) && !s.opt && !primaryAssigned){ cls=''; primaryAssigned=true; } // the one to press next
+    b.className=cls;
+    if(done.has(i)) b.style.opacity='.55';
+    if(locked) b.title='Finish the previous step first';
+    b.onclick=async()=>{
+      $$('#stageActions button').forEach(x=>x.disabled=true);
+      try{ await s.on(); done.add(i); doneActs.add(curAct); }
+      catch(e){ idle(); feedLine(ICON.alert,'Something went wrong: '+e.message,'bad'); }
+      finally{ idle(); stopWork(); renderSteps(); }
+    };
+    wrap.appendChild(b);
+  });
+  $('#prevChap').disabled=curAct===1; $('#nextChap').disabled=curAct===3;
+  renderRail();
+}
+// full render on act switch: reset the flow diagram + verdict, then draw the steps.
+function renderAct(){
+  const A=acts()[curAct];
+  $('#stageTag').textContent=A.tag;
+  $('#stageTitle').textContent=A.title;
+  $('#stageInstruction').innerHTML=A.instr;
+  clearFlow(); stageResult('');
+  renderSteps();
+}
+function updateRunbar(a){
+  const reg=REG||{};
+  const node=(reg.agents&&reg.agents[a.target])||(reg.orchestrators&&reg.orchestrators[a.target])||{};
+  const rid=node.arn?node.arn.split('/').pop():null;
+  const loc=rid?`<b>AWS Bedrock AgentCore</b> <span class="fw" style="font-size:12.5px">(${reg.region||''} · runtime <code>${rid}</code>)</span>`
+               :`<b>your laptop</b> <span class="fw" style="font-size:12.5px">(local)</span>`;
+  $('#runbar').innerHTML=`<span class="live">LIVE</span><span>This ${a.noun} runs on `+loc+` &nbsp;·&nbsp; framework <span class="fwbig">${a.fwLabel}</span></span>`;
+}
+async function govBoot(){
+  if($('#story').dataset.ready) return;
+  $('#story').dataset.ready='1';
+  feedReset();
+  try{const c=await (await fetch('/api/governance/config')).json();
+    $('#govConfig').innerHTML=`<b>Under the hood:</b> certificates are signed with ${c.signing_mode} (${c.signature_algorithm}) and stored ${c.store_mode}; the gate is the ${c.enforcement_component}.`;
+  }catch(e){}
+  if(!REG){ try{REG=await (await fetch('/api/registry')).json();}catch(e){} }
+  $('#prevChap').onclick=()=>{ if(curAct>1){curAct--;renderAct();} };
+  $('#nextChap').onclick=()=>{ if(curAct<3){curAct++;renderAct();} };
+  $('#feedClear').onclick=feedReset;
+  const a=selAgent(); GOV_FW=a.fwLabel; updateRunbar(a);
+  renderAct(); refreshCert(a.id);
+}
+$('#adjBtn').onclick=adjudicate;
+$('#obsRefresh').onclick=loadAllObs;
+boot();
+</script>
+</body>
+</html>

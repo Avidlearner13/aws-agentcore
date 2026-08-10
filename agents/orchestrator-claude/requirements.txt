@@ -1,0 +1,5 @@
+# Phase-2 orchestrator (Claude Agent SDK supervisor)
+claude-agent-sdk
+httpx
+boto3
+bedrock-agentcore

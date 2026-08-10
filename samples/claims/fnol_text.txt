@@ -1,0 +1,82 @@
+EVERGREEN HOMESHIELD — First Notice of Loss
+Claim Intake Form
+Claim & Policy
+Claim number
+CLM-2026-44817
+Policy number
+EHS-HO3-0099821-A
+Named insured
+Jordan & Sam Avery
+Insured location
+742 Birchwood Lane, Springfield, IL 62704
+Contact
+jordan.avery@example.com / (217) 555-0148
+Date of loss
+2026-03-14
+Date reported
+2026-03-15
+Loss Details
+Cause of loss
+Sudden burst of the supply pipe under the kitchen sink
+Peril category
+Water (sudden & accidental plumbing discharge)
+Was it a flood / external water?
+No — internal plumbing failure
+Was it sewer/drain backup?
+No
+Description: While the insured was away for the weekend, the cold-water supply line under the kitchen sink burst.
+Water ran for an estimated 6–8 hours, damaging the kitchen hardwood flooring, the lower cabinets, and an adjacent
+area rug. A plumber capped the line and a mitigation company performed water extraction and drying. No mold
+observed at inspection.
+Itemized Claim
+Description
+Category
+Amount
+Hardwood flooring repair/replacement (kitchen)
+Dwelling
+$8,500.00
+Lower kitchen cabinets
+Dwelling
+$4,200.00
+Water extraction & structural drying
+Mitigation
+$3,100.00
+Area rug (personal property)
+Contents
+$900.00
+Total claimed
+$16,700.00
+Attachments: repair_estimate.pdf (contractor estimate).
+
+--- ATTACHMENT: repair_estimate.pdf ---
+
+DryFast Restoration LLC — Repair Estimate
+Estimate #DF-9921 · for CLM-2026-44817
+Property
+742 Birchwood Lane, Springfield, IL 62704
+Prepared for
+Jordan & Sam Avery
+Inspection date
+2026-03-16
+Cause
+Burst supply line under kitchen sink — water damage
+Estimated Costs
+Description
+Category
+Amount
+Remove & replace hardwood flooring (180 sq ft)
+Dwelling
+$8,500.00
+Replace lower cabinets + countertop section
+Dwelling
+$4,200.00
+Emergency water extraction + 3-day drying
+Mitigation
+$3,100.00
+Area rug (not restorable)
+Contents
+$900.00
+Total claimed
+$16,700.00
+Notes: Damage limited to kitchen and adjacent hallway. No evidence of long-term leakage; failure appears sudden.
+Estimate valid 30 days.

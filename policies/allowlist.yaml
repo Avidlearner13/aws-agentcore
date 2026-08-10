@@ -1,0 +1,48 @@
+# Capability allow-list — governance gate (PLAN.md §7 "Policy repository").
+# The BUILD pipeline's capability-validation stage rejects any agent whose manifest
+# declares a framework / tool / model / data-domain not listed here.
+# Versioned in-repo; this is the source of truth for "what is deployable".
+
+version: 1
+
+frameworks:
+  - claude-agent-sdk
+  - gcp-adk
+  - langchain
+  - orchestrator-claude
+
+models:
+  - us.anthropic.claude-sonnet-4-6
+  - anthropic.claude-3-sonnet          # legacy id kept valid for older manifests
+  - us.amazon.nova-pro-v1:0            # AWS-native, cheaper; used by Risk (LangChain) + Intake (ADK)
+
+tools:
+  - summarize_claim
+  - extract_entities
+  - coverage_lookup
+  - policy_lookup
+  - fraud_score
+
+data_access:
+  - claims-documents
+  - claims-documents-s3
+  - policy-documents
+  - kb-claims
+
+# Eval thresholds per dimension (cert is issued only if every dimension passes).
+eval_thresholds:
+  accuracy_quality: 0.80
+  guardrail_adherence: 1.0
+  capability_governance: 1.0
+
+# Risk scoring weights → tier. score = pii*w_pii + external*w_ext + (action!=read-only)*w_write
+risk:
+  weights: { handles_pii: 3, external_facing: 3, write_action: 2 }
+  tiers:                       # inclusive lower bound → tier
+    - { min: 0, tier: 1 }
+    - { min: 3, tier: 2 }
+    - { min: 6, tier: 3 }
+
+# Certificate lifetime.
+certificate:
+  validity_days: 90

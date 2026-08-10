@@ -1,0 +1,17 @@
+# Control-plane API: backend that drives AgentCore + serves the Angular console
+boto3
+botocore
+bedrock-agentcore
+bedrock-agentcore-starter-toolkit
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+httpx
+pyyaml
+python-multipart
+pypdf
+reportlab
+authlib
+itsdangerous

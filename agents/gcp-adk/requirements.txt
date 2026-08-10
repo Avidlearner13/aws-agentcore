@@ -1,0 +1,6 @@
+# GCP Agent Development Kit (ADK) agent — Intake & Document Intelligence.
+# ADK reaches Claude on Amazon Bedrock via LiteLLM.
+google-adk
+litellm
+boto3
+bedrock-agentcore

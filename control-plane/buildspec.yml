@@ -1,0 +1,20 @@
+version: 0.2
+phases:
+  pre_build:
+    commands:
+      - echo "Context contents:" && ls -la
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_URI
+  build:
+    commands:
+      # Releases MUST pass IMAGE_TAG=vN (e.g. v7, v8, ...) so each version keeps its own immutable
+      # tag for easy rollback. With no override this falls back to a throwaway `dev` tag, so a stray
+      # build can never clobber a real release. `latest` always points at the most recent build.
+      - 'IMAGE_TAG="${IMAGE_TAG:-dev}"'
+      - echo "Building control-plane image $ECR_URI:$IMAGE_TAG ..."
+      - docker build -t $ECR_URI:$IMAGE_TAG -t $ECR_URI:latest .
+  post_build:
+    commands:
+      - echo Pushing image to ECR...
+      - docker push $ECR_URI:$IMAGE_TAG
+      - docker push $ECR_URI:latest
+      - echo "Done. Built tag = $IMAGE_TAG. Point App Runner at it with scripts/set-app-image.py $IMAGE_TAG"

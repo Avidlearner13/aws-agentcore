@@ -1,0 +1,15 @@
+ACME HomeShield Homeowners Policy — Plan A (Current)
+Policy term: 12 months. Annual premium: $1,180.
+
+Coverages:
+- Dwelling: $300,000
+- Personal property: $150,000 (50% of dwelling)
+- Liability: $100,000 per occurrence
+- Loss of use: $30,000
+- Deductible: $1,000 (all perils)
+- Water backup: included up to $5,000
+
+Exclusions:
+- Flood damage
+- Earthquake
+- Wear and tear / maintenance

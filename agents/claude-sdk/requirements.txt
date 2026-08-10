@@ -1,0 +1,5 @@
+# Claude Agent SDK agent (Phase 1 task + Phase 2 orchestrator/workers)
+claude-agent-sdk
+anthropic[bedrock]
+boto3
+bedrock-agentcore

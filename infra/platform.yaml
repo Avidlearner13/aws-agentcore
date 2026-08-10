@@ -118,6 +118,10 @@ spec:
           - logs:GetLogEvents
           - logs:DescribeLogStreams
           - logs:DescribeLogGroups
+        # Governance grants (KMS sign/verify, cert store) are derived from
+        # governance.yaml -> spec.consumers, not duplicated here.
+        inheritsFrom:
+          - governance.yaml#/spec/consumers/web-console
 
       - name: console-ecr-access
         trustedService: apprunner-build
@@ -177,6 +181,18 @@ spec:
       env:
         AWS_REGION: ${region}
         PORT: "8080"
+      # Resolved from governance.yaml. Absent, the app silently falls back to a
+      # local RSA key on container disk - certificates would still verify, but
+      # they would be unauditable and lost on restart.
+      governance:
+        store: agent-core-governance
+        bindings:
+          - source: signing.kms.keyAlias
+            injectAs: CERT_SIGNING_KEY_ID
+          - source: certificateStore.table.name
+            injectAs: CERT_STORE_TABLE
+          - source: certificateStore.archive.bucketPattern
+            injectAs: CERT_ARCHIVE_BUCKET
       # Resolved from the deployed runtimes - keeps ARNs out of the manifest.
       agentBindings:
         - agent: intake

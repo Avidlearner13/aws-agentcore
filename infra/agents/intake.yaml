@@ -63,4 +63,14 @@ spec:
 
   data: []                        # datasets/KBs mounted into the image
 
+  # How the control plane surfaces this agent. Read at startup so the console's
+  # registry is derived from here rather than hardcoded.
+  console:
+    key: intake
+    group: specialist             # specialist | orchestrator
+    label: Intake & Document Intelligence
+    arnEnv: INTAKE_ARN
+    urlEnv: INTAKE_URL
+    localPort: 8772               # local dev only
+
   env: {}                         # extra plain env vars (no secrets - see platform.secrets)

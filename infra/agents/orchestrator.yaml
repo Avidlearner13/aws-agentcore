@@ -80,4 +80,12 @@ spec:
 
   data: []
 
+  console:
+    key: claude                   # selector value in the orchestrator dropdown
+    group: orchestrator
+    label: Claude SDK supervisor
+    arnEnv: ORCH_CLAUDE_ARN
+    urlEnv: ORCH_CLAUDE_URL
+    localPort: 8774
+
   env: {}

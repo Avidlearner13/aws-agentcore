@@ -42,24 +42,67 @@ CLAIMS_DIR = SAMPLES_DIR / "claims"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 # --- Agent registry --------------------------------------------------------------
-# Each target has a localhost `url` (local dev) and an optional AgentCore `arn` (env). When the
-# ARN is set we invoke via the AgentCore data plane (InvokeAgentRuntime); otherwise localhost HTTP.
-AGENTS = {
-    "intake": {"framework": "gcp-adk", "role": "Intake & Document Intelligence",
-               "url": os.environ.get("INTAKE_URL", "http://127.0.0.1:8772/invocations"),
-               "arn": os.environ.get("INTAKE_ARN")},
-    "coverage": {"framework": "claude-agent-sdk", "role": "Coverage & Adjudication",
-                 "url": os.environ.get("COVERAGE_URL", "http://127.0.0.1:8771/invocations"),
-                 "arn": os.environ.get("COVERAGE_ARN")},
-    "risk": {"framework": "langchain", "role": "Risk, Fraud & Compliance",
-             "url": os.environ.get("RISK_URL", "http://127.0.0.1:8773/invocations"),
-             "arn": os.environ.get("RISK_ARN")},
-}
-ORCHESTRATORS = {
-    "claude": {"framework": "claude-agent-sdk", "label": "Claude SDK supervisor",
-               "url": os.environ.get("ORCH_CLAUDE_URL", "http://127.0.0.1:8774/invocations"),
-               "arn": os.environ.get("ORCH_CLAUDE_ARN")},
-}
+# Derived from the declarative manifests in infra/agents/*.yaml, which are the single
+# source of truth for what an agent is. Each target has a localhost `url` (local dev)
+# and an optional AgentCore `arn` (env). When the ARN is set we invoke via the
+# AgentCore data plane (InvokeAgentRuntime); otherwise localhost HTTP.
+MANIFEST_DIR = ROOT / "infra" / "agents"
+
+
+def _load_registry() -> tuple[dict, dict]:
+    """Build the specialist + orchestrator registries from infra/agents/*.yaml."""
+    import yaml
+
+    agents: dict[str, dict] = {}
+    orchestrators: dict[str, dict] = {}
+    if not MANIFEST_DIR.is_dir():
+        return agents, orchestrators
+    for path in sorted(MANIFEST_DIR.glob("*.yaml")):
+        try:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except Exception:  # noqa: BLE001 - a malformed manifest must not take the console down
+            continue
+        spec = doc.get("spec") or {}
+        console = spec.get("console") or {}
+        key = console.get("key")
+        if not key:
+            continue
+        entry = {
+            "framework": (spec.get("source") or {}).get("framework"),
+            "url": os.environ.get(console.get("urlEnv", ""),
+                                  f"http://127.0.0.1:{console.get('localPort')}/invocations"),
+            "arn": os.environ.get(console.get("arnEnv", "")),
+        }
+        label = console.get("label") or (doc.get("metadata") or {}).get("displayName")
+        if console.get("group") == "orchestrator":
+            orchestrators[key] = {**entry, "label": label}
+        else:
+            agents[key] = {**entry, "role": label}
+    return agents, orchestrators
+
+
+AGENTS, ORCHESTRATORS = _load_registry()
+
+# Fallback for images built before infra/ was copied in. Keeps an already-deployed
+# container working; a rebuilt image reads the manifests above instead.
+if not AGENTS:
+    AGENTS = {
+        "intake": {"framework": "gcp-adk", "role": "Intake & Document Intelligence",
+                   "url": os.environ.get("INTAKE_URL", "http://127.0.0.1:8772/invocations"),
+                   "arn": os.environ.get("INTAKE_ARN")},
+        "coverage": {"framework": "claude-agent-sdk", "role": "Coverage & Adjudication",
+                     "url": os.environ.get("COVERAGE_URL", "http://127.0.0.1:8771/invocations"),
+                     "arn": os.environ.get("COVERAGE_ARN")},
+        "risk": {"framework": "langchain", "role": "Risk, Fraud & Compliance",
+                 "url": os.environ.get("RISK_URL", "http://127.0.0.1:8773/invocations"),
+                 "arn": os.environ.get("RISK_ARN")},
+    }
+if not ORCHESTRATORS:
+    ORCHESTRATORS = {
+        "claude": {"framework": "claude-agent-sdk", "label": "Claude SDK supervisor",
+                   "url": os.environ.get("ORCH_CLAUDE_URL", "http://127.0.0.1:8774/invocations"),
+                   "arn": os.environ.get("ORCH_CLAUDE_ARN")},
+    }
 
 _ac_client = None
 _logs_client = None

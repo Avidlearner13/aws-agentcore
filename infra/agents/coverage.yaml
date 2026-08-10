@@ -70,4 +70,12 @@ spec:
 
   data: []
 
+  console:
+    key: coverage
+    group: specialist
+    label: Coverage & Adjudication
+    arnEnv: COVERAGE_ARN
+    urlEnv: COVERAGE_URL
+    localPort: 8771
+
   env: {}

@@ -1,0 +1,36 @@
+apiVersion: agentcore/v1
+kind: Bootstrap
+
+metadata:
+  name: agent-core-bootstrap
+  description: >-
+    The one stack that cannot keep its state remotely, because it *is* the remote
+    state. Apply first, once per account, then every other stack points at it.
+
+spec:
+  region: us-east-1
+
+  state:
+    backend: s3
+    bucketPattern: agent-core-tfstate-${account_id}-${region}
+    keyPrefix: agent-core/
+    versioning: true              # required: lets you recover a clobbered state file
+    encryption:
+      type: sse-kms
+      keyAlias: alias/agent-core-state
+    blockPublicAccess: true
+    lifecycle:
+      noncurrentVersionExpirationDays: 90
+
+  locking:
+    backend: dynamodb
+    table:
+      name: agent-core-tf-locks
+      hashKey: LockID
+      billingMode: PAY_PER_REQUEST
+      pointInTimeRecovery: true
+
+  # Bootstrap manages its own state locally on first apply, then migrates into
+  # the bucket it just created. Never delete this stack while other stacks exist.
+  selfManaged: true
+  deletionProtection: true

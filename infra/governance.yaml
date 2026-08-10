@@ -1,0 +1,107 @@
+apiVersion: agentcore/v1
+kind: GovernanceStore
+
+metadata:
+  name: agent-core-governance
+  description: >-
+    Certification-gated deployment. An agent that runs freely on raw AgentCore is
+    BLOCKED by the platform unless it carries a cryptographically signed
+    certificate. This declares the signing key, the certificate store and the
+    policy source that the gate depends on.
+
+spec:
+  # ---------------------------------------------------------------------------
+  # Signing. The application picks KMS when CERT_SIGNING_KEY_ID is present and
+  # silently falls back to a local RSA-2048 keypair otherwise. That fallback is a
+  # dev convenience and MUST be impossible in a deployed environment - a key on
+  # container disk is lost on restart and unauditable, so certificates signed
+  # with it cannot be revoked or independently verified after the fact.
+  # ---------------------------------------------------------------------------
+  signing:
+    mode: kms                     # kms | local-rsa
+    kms:
+      keyAlias: alias/agent-core-cert-signing
+      keySpec: RSA_2048
+      keyUsage: SIGN_VERIFY
+      signingAlgorithm: RSASSA_PKCS1_V1_5_SHA_256
+      # Asymmetric KMS keys do not support automatic rotation. Rotation is a
+      # deliberate re-key plus re-issue of live certificates.
+      automaticRotation: false
+      deletionWindowDays: 30
+      injectAs: CERT_SIGNING_KEY_ID
+    localFallback:
+      allowed: false              # provisioner should fail closed if mode != kms
+      path: control-plane/.governance/signing_key.pem
+
+  # ---------------------------------------------------------------------------
+  # Certificate store. Currently a local JSON file, which does not survive a
+  # container restart and is per-instance - so revocation does not propagate.
+  # ---------------------------------------------------------------------------
+  certificateStore:
+    backend: dynamodb             # dynamodb | s3 | local-file
+    table:
+      name: agent-core-certificates
+      hashKey: agent_name
+      rangeKey: version
+      billingMode: PAY_PER_REQUEST
+      pointInTimeRecovery: true
+      ttlAttribute: expires_at
+    archive:
+      backend: s3
+      bucketPattern: agent-core-cert-archive-${account_id}-${region}
+      versioning: true
+      # Signed certificates are audit evidence; make them immutable.
+      objectLock:
+        enabled: true
+        mode: GOVERNANCE
+        retentionDays: 365
+    localFallback:
+      allowed: false
+      path: control-plane/.governance/store.json
+
+  # ---------------------------------------------------------------------------
+  # Policy. Single in-repo source of truth for "what is deployable".
+  # ---------------------------------------------------------------------------
+  policy:
+    source: policies/allowlist.yaml
+    schemaVersion: 1
+    validates: [frameworks, models, tools, dataDomains]
+    enforcement:
+      # Enforce at the earliest point that can reject, not only at invoke.
+      - stage: pre-apply
+        action: reject
+        description: >-
+          Fail the apply when any infra/agents/*.yaml declares a framework, model,
+          tool or data domain absent from the allow-list.
+      - stage: build
+        action: reject
+        description: Capability-validation stage of the BUILD pipeline.
+      - stage: invoke
+        action: block
+        description: Runtime cert gate - no valid certificate, no execution.
+
+  # ---------------------------------------------------------------------------
+  # The gate itself
+  # ---------------------------------------------------------------------------
+  gate:
+    requireCertificate: true
+    allowRawBypass: false         # true only for local demos; never deployed
+    certificate:
+      expiryDays: 90
+      revocable: true
+      revocationEffect: immediate
+      pipeline: [capability, risk, live-eval, sign]
+
+  consumers:
+    - service: web-console
+      grants:
+        - kms:Sign
+        - kms:Verify
+        - kms:GetPublicKey
+        - kms:DescribeKey
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:Query
+        - dynamodb:UpdateItem
+        - s3:GetObject
+        - s3:PutObject

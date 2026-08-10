@@ -15,6 +15,8 @@ RUN pip install --no-cache-dir -r ./control-plane/requirements.txt
 COPY control-plane/app ./control-plane/app
 COPY samples ./samples
 COPY policies ./policies
+# Declarative manifests: the control plane derives its agent registry from these.
+COPY infra ./infra
 
 # main.py at /srv/control-plane/app/main.py → ROOT=/srv, so /srv/samples resolves correctly.
 EXPOSE 8080

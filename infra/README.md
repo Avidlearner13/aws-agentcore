@@ -6,7 +6,9 @@ of what is currently deployed.
 
 ```
 infra/
-  platform.yaml        # shared: registry, build, IAM, secrets, gateways, web console
+  bootstrap.yaml       # kind: Bootstrap       — remote state + locking (apply first, once)
+  platform.yaml        # kind: Platform        — registry, build, IAM, secrets, gateways, console
+  governance.yaml      # kind: GovernanceStore — cert signing key, cert store, policy enforcement
   agents/
     intake.yaml        # kind: AgentRuntime
     coverage.yaml
@@ -16,6 +18,46 @@ infra/
 
 **Adding an agent is adding a file.** A provisioner discovers `infra/agents/*.yaml`
 and iterates; there are no per-agent edits anywhere else.
+
+### Apply order
+
+| # | Stack | Why it must come first |
+|---|---|---|
+| 1 | `bootstrap.yaml` | Creates the state bucket + lock table everything else stores state in. Keeps its own state locally, then migrates. |
+| 2 | `governance.yaml` | The KMS key and certificate store must exist before the console can be given their identifiers. |
+| 3 | `platform.yaml` | Registry, build, IAM, secrets and the console service. Console env is resolved from (2). |
+| 4 | `agents/*.yaml` | Runtimes and memory. **Sequentially** — see non-negotiable 4 below. |
+
+Step 4 must run after 3 (images need the registry) and step 3's console
+`agentBindings` are resolved from 4's outputs — so the console's env is written in
+a second pass once the runtime ARNs exist. A provisioner that models this as one
+graph gets the ordering for free; one that runs stacks independently needs an
+explicit two-phase apply for the console.
+
+---
+
+## Who consumes these
+
+Manifests are only a source of truth if something breaks when reality drifts.
+
+| Consumer | What it reads |
+|---|---|
+| `infra/validate.py` | All manifests + `policies/allowlist.yaml` + each agent's code. **Run in CI and before every apply** — exits non-zero on drift. |
+| `control-plane/app/main.py` | `infra/agents/*.yaml` → `spec.console` builds the specialist and orchestrator registries at startup. No hardcoded agent list. |
+| Your provisioner | Everything else. |
+
+The toolkit-generated `.bedrock_agentcore.yaml` files are **gitignored** — they are
+account-specific outputs of `agentcore configure`, not inputs.
+
+```bash
+python infra/validate.py     # 0 = consistent, 1 = drift
+```
+
+It catches: a model or framework missing from the allow-list, a manifest whose
+model disagrees with the `DEFAULT_MODEL` literal in its own code, a dependency on
+an agent that doesn't exist, colliding console keys or env var names, a
+`platform.yaml` binding that injects a different variable than the agent declares,
+and any account ID / ARN / absolute path that creeps into a manifest.
 
 ---
 

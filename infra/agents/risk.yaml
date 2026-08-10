@@ -69,4 +69,12 @@ spec:
       source: agents/langchain/kb
       mountPath: /app/kb
 
+  console:
+    key: risk
+    group: specialist
+    label: Risk, Fraud & Compliance
+    arnEnv: RISK_ARN
+    urlEnv: RISK_URL
+    localPort: 8773
+
   env: {}

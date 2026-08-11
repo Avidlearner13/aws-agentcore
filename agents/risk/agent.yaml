@@ -79,16 +79,19 @@ spec:
     # --- build the image -----------------------------------------------------
     build:
       - step: 1-upload-source
+        produces: source.zip in the CodeBuild source bucket
         principal: operator
         actions: [s3:PutObject]
         resource: s3://bedrock-agentcore-codebuild-sources-*/risk/
         audit: none
       - step: 2-start-build
+        produces: buildId (CodeBuild)
         principal: operator
         actions: [codebuild:StartBuild, codebuild:BatchGetBuilds]
         resource: project/bedrock-agentcore-risk-builder
         audit: cloudtrail
       - step: 3-push-image
+        produces: image sha256 digest in ECR
         principal: agent-build-execution
         actions: [ecr:GetAuthorizationToken, ecr:InitiateLayerUpload,
                   ecr:UploadLayerPart, ecr:CompleteLayerUpload, ecr:PutImage,
@@ -99,16 +102,19 @@ spec:
     # --- provision the runtime ----------------------------------------------
     provision:
       - step: 4-create-execution-role
+        produces: execution role ARN
         principal: operator
         actions: [iam:CreateRole, iam:PutRolePolicy, iam:AttachRolePolicy, iam:GetRole]
         resource: role/AmazonBedrockAgentCoreSDKRuntime-*
         audit: cloudtrail
       - step: 5-create-memory
+        produces: memoryId + memoryArn
         principal: operator
         actions: [bedrock-agentcore:CreateMemory, bedrock-agentcore:GetMemory]
         resource: memory/risk_mem
         audit: cloudtrail
       - step: 6-create-or-update-runtime
+        produces: agentRuntimeArn, agentRuntimeId, agentRuntimeVersion
         principal: operator
         actions: [bedrock-agentcore:CreateAgentRuntime,
                   bedrock-agentcore:UpdateAgentRuntime,
@@ -124,6 +130,7 @@ spec:
               deciding who may hand that role to the service - the single most
               privilege-sensitive grant in provisioning.
       - step: 7-pin-endpoint
+        produces: endpoint targetVersion (pinned)
         principal: operator
         actions: [bedrock-agentcore:UpdateAgentRuntimeEndpoint,
                   bedrock-agentcore:GetAgentRuntimeEndpoint,
@@ -135,6 +142,7 @@ spec:
     # --- serve a request -----------------------------------------------------
     invoke:
       - step: 8-authorize-caller
+        produces: runtimeSessionId
         principal: [console-instance, orchestrator]
         actions: [bedrock-agentcore:InvokeAgentRuntime]
         resource: runtime/risk
@@ -143,18 +151,21 @@ spec:
           Data-plane call. NOT recorded in CloudTrail management events, so this
           hop has no audit trail by default - the reason it must be declared.
       - step: 9-assume-execution-role
+        produces: temporary STS credentials for the runtime
         principal: bedrock-agentcore.amazonaws.com
         actions: [sts:AssumeRole]
         resource: role/AmazonBedrockAgentCoreSDKRuntime-*
         audit: cloudtrail
         note: Trust policy, not an identity policy - the other half of PassRole.
       - step: 11-session-memory
+        produces: session event records
         principal: agent-runtime-execution
         actions: [bedrock-agentcore:CreateEvent, bedrock-agentcore:ListEvents,
                   bedrock-agentcore:RetrieveMemoryRecords]
         resource: memory/risk_mem
         audit: none
       - step: 12-model-invoke
+        produces: fraud score, risk level, flags with guideline citations
         principal: agent-runtime-execution
         actions: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
         resource: inference-profile/us.amazon.nova-pro-v1:0
@@ -163,6 +174,7 @@ spec:
           ResourceNotFoundException when model access is not granted for the
           account, which surfaces at invoke time - never at provision time.
       - step: 13-telemetry
+        produces: CloudWatch log stream + X-Ray trace
         principal: agent-runtime-execution
         actions: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents,
                   xray:PutTraceSegments]
@@ -172,6 +184,7 @@ spec:
     # --- teardown ------------------------------------------------------------
     teardown:
       - step: 14-delete
+        produces: nothing (resources removed)
         principal: operator
         actions: [bedrock-agentcore:DeleteAgentRuntime,
                   bedrock-agentcore:DeleteMemory,

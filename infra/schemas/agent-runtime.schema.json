@@ -288,6 +288,7 @@
             "enum": ["cloudtrail", "none"],
             "description": "Whether the decision leaves a CloudTrail management-event record. Data-plane calls do not."
           },
+          "produces": { "type": "string", "description": "The value this step yields to the next one." },
           "failsAs": { "type": "string", "description": "The observable symptom when this grant is missing." },
           "note": { "type": "string" },
           "derivedFrom": { "type": "string", "description": "Manifest field this grant is generated from." },

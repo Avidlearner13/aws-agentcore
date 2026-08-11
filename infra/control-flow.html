@@ -1,0 +1,1124 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent-Core - IAM control flow</title>
+<style>
+:root {
+  --bg:#f7f7f5; --panel:#fff; --ink:#1a1a19; --muted:#6b6b66; --line:#e2e2dd;
+  --accent:#2f6f4e; --warn:#a8541b; --danger:#9b2c2c; --code:#f0f0ec;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#131513; --panel:#1b1e1b; --ink:#e8e8e4; --muted:#9a9a93; --line:#2c302c;
+  --accent:#7fc4a0; --warn:#d99a5b; --danger:#e08585; --code:#22261f;
+} }
+:root[data-theme="dark"] {
+  --bg:#131513; --panel:#1b1e1b; --ink:#e8e8e4; --muted:#9a9a93; --line:#2c302c;
+  --accent:#7fc4a0; --warn:#d99a5b; --danger:#e08585; --code:#22261f;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif; }
+header { padding:28px 24px 16px; border-bottom:1px solid var(--line); }
+h1 { margin:0 0 6px; font-size:22px; letter-spacing:-.01em; }
+header p { margin:0; color:var(--muted); max-width:70ch; }
+.tabs { display:flex; gap:6px; flex-wrap:wrap; padding:14px 24px; border-bottom:1px solid var(--line); }
+.tab { background:var(--panel); color:var(--ink); border:1px solid var(--line);
+  padding:6px 14px; border-radius:999px; cursor:pointer; font:inherit; font-size:13px; }
+.tab[aria-selected="true"] { background:var(--accent); border-color:var(--accent); color:var(--bg); font-weight:600; }
+main { padding:8px 24px 60px; max-width:1180px; margin:0 auto; }
+.agent-head { padding:22px 0 6px; }
+.agent-head h2 { margin:0 0 6px; font-size:18px; }
+.meta code { font-size:12px; margin-right:6px; }
+.phase-head { margin:26px 0 10px; padding-top:16px; border-top:1px solid var(--line); }
+.phase-head h3 { margin:0; font-size:15px; text-transform:uppercase; letter-spacing:.07em; color:var(--accent); }
+.phase-head p { margin:2px 0 0; color:var(--muted); font-size:13px; }
+.colhead { display:grid; grid-template-columns:1fr 54px 1fr; gap:0 14px;
+  font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); padding:6px 0; }
+.colhead div:nth-child(3) { text-align:left; }
+.row { display:grid; grid-template-columns:1fr 54px 1fr; gap:0 14px; align-items:stretch; }
+.spine { position:relative; display:flex; justify-content:center; }
+.spine::before { content:""; position:absolute; top:0; bottom:0; width:2px; background:var(--line); }
+.dot { position:relative; z-index:1; width:26px; height:26px; border-radius:50%;
+  background:var(--accent); color:var(--bg); display:grid; place-items:center;
+  font-size:12px; font-weight:700; margin-top:14px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  padding:12px 14px; margin:10px 0; }
+.card h4 { margin:0; font-size:14px; text-transform:capitalize; }
+.produces, .fails, .note, .why { font-size:12.5px; color:var(--muted); margin-top:6px; }
+.produces span, .fails span { display:inline-block; font-size:10.5px; text-transform:uppercase;
+  letter-spacing:.08em; padding:1px 6px; border-radius:4px; margin-right:6px; }
+.produces span { background:var(--code); color:var(--accent); }
+.fails span { background:var(--code); color:var(--danger); }
+code { background:var(--code); padding:2px 6px; border-radius:5px;
+  font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.act { display:inline-block; margin:3px 4px 0 0; }
+.act.warn { color:var(--warn); border:1px dashed var(--warn); }
+.pr { color:var(--accent); font-weight:600; }
+.who { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.res { margin-top:7px; font-size:12px; color:var(--muted); word-break:break-all; }
+.res::before { content:"on "; color:var(--muted); }
+.none { color:var(--muted); font-size:12.5px; font-style:italic; }
+.badge { margin-left:auto; font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
+  padding:2px 7px; border-radius:999px; white-space:nowrap; }
+.badge.ok { background:color-mix(in srgb, var(--accent) 18%, transparent); color:var(--accent); }
+.badge.no { background:color-mix(in srgb, var(--danger) 16%, transparent); color:var(--danger); }
+.also { margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); }
+@media (max-width:760px) {
+  .row, .colhead { grid-template-columns:1fr; }
+  .spine { display:none; }
+  .card.iam { margin-top:0; border-left:3px solid var(--accent); }
+}
+</style></head><body>
+<header>
+  <h1>IAM control flow</h1>
+  <p>Each row is one authorization decision, in the order it is evaluated.
+     Left is what happens and the value it yields; right is the IAM check that
+     must pass for it to happen. Generated from <code>agents/*/agent.yaml</code>.</p>
+</header>
+<div class="tabs" role="tablist"><button class="tab" data-agent="coverage">coverage</button><button class="tab" data-agent="intake">intake</button><button class="tab" data-agent="orchestrator">orchestrator</button><button class="tab" data-agent="risk">risk</button></div>
+<main>
+  <div class="colhead"><div>What happens</div><div></div><div>IAM control</div></div>
+  
+    <div class="agent" id="agent-coverage" hidden>
+      <div class="agent-head">
+        <h2>Coverage &amp; Adjudication</h2>
+        <div class="meta"><code>claude-agent-sdk</code><code>us.anthropic.claude-sonnet-4-6</code></div>
+      </div>
+      
+      <section class="phase" data-phase="build">
+        <div class="phase-head"><h3>Build</h3><p>Produce the container image</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>upload source</h4>
+          <div class="produces"><span>yields</span> source.zip in the CodeBuild source bucket</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">1</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">s3:PutObject</code></div>
+          <div class="res">s3://bedrock-agentcore-codebuild-sources-*/coverage/</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>start build</h4>
+          <div class="produces"><span>yields</span> buildId (CodeBuild)</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">2</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">codebuild:StartBuild</code><code class="act">codebuild:BatchGetBuilds</code></div>
+          <div class="res">project/bedrock-agentcore-coverage-builder</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>push image</h4>
+          <div class="produces"><span>yields</span> image sha256 digest in ECR</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">3</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-build-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">ecr:GetAuthorizationToken</code><code class="act">ecr:InitiateLayerUpload</code><code class="act">ecr:UploadLayerPart</code><code class="act">ecr:CompleteLayerUpload</code><code class="act">ecr:PutImage</code><code class="act">s3:GetObject</code><code class="act">logs:PutLogEvents</code></div>
+          <div class="res">repository/bedrock-agentcore-coverage</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="provision">
+        <div class="phase-head"><h3>Provision</h3><p>Create or update the runtime</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create execution role</h4>
+          <div class="produces"><span>yields</span> execution role ARN</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">4</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">iam:CreateRole</code><code class="act">iam:PutRolePolicy</code><code class="act">iam:AttachRolePolicy</code><code class="act">iam:GetRole</code></div>
+          <div class="res">role/AmazonBedrockAgentCoreSDKRuntime-*</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create memory</h4>
+          <div class="produces"><span>yields</span> memoryId + memoryArn</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">5</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateMemory</code><code class="act">bedrock-agentcore:GetMemory</code></div>
+          <div class="res">memory/coverage_mem</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create or update runtime</h4>
+          <div class="produces"><span>yields</span> agentRuntimeArn, agentRuntimeId, agentRuntimeVersion</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">6</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateAgentRuntime</code><code class="act">bedrock-agentcore:UpdateAgentRuntime</code><code class="act">bedrock-agentcore:GetAgentRuntime</code><code class="act">bedrock-agentcore:ListAgentRuntimes</code></div>
+          <div class="res">runtime/coverage</div>
+          <div class="also"><code class="act warn">iam:PassRole</code><div class="why">The runtime runs AS the execution role. PassRole is the control deciding who may hand that role to the service - the single most privilege-sensitive grant in provisioning.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>pin endpoint</h4>
+          <div class="produces"><span>yields</span> endpoint targetVersion (pinned)</div><div class="note">Sets targetVersion. Unpinned, the endpoint floats onto new versions.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">7</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:UpdateAgentRuntimeEndpoint</code><code class="act">bedrock-agentcore:GetAgentRuntimeEndpoint</code><code class="act">bedrock-agentcore:ListAgentRuntimeEndpoints</code></div>
+          <div class="res">runtime-endpoint/coverage/DEFAULT</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="invoke">
+        <div class="phase-head"><h3>Invoke</h3><p>Serve one request</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>authorize caller</h4>
+          <div class="produces"><span>yields</span> runtimeSessionId</div><div class="note">Data-plane call. NOT recorded in CloudTrail management events, so this hop has no audit trail by default - the reason it must be declared.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">8</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">console-instance</code> <code class="pr">orchestrator</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:InvokeAgentRuntime</code></div>
+          <div class="res">runtime/coverage</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>assume execution role</h4>
+          <div class="produces"><span>yields</span> temporary STS credentials for the runtime</div><div class="note">Trust policy, not an identity policy - the other half of PassRole.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">9</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">bedrock-agentcore.amazonaws.com</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">sts:AssumeRole</code></div>
+          <div class="res">role/AmazonBedrockAgentCoreSDKRuntime-*</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>model discovery</h4>
+          <div class="produces"><span>yields</span> list of invokable inference profiles</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">10</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock:ListInferenceProfiles</code><code class="act">bedrock:GetInferenceProfile</code></div>
+          <div class="res">inference-profile/*</div>
+          <div class="fails"><span>if denied</span> AccessDenied, after which the bundled CLI silently falls back to a hardcoded model list and reports a model unrelated to the configured one.</div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>session memory</h4>
+          <div class="produces"><span>yields</span> session event records</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">11</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateEvent</code><code class="act">bedrock-agentcore:ListEvents</code><code class="act">bedrock-agentcore:RetrieveMemoryRecords</code></div>
+          <div class="res">memory/coverage_mem</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>model invoke</h4>
+          <div class="produces"><span>yields</span> coverage determination + eligible amount</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">12</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock:InvokeModel</code><code class="act">bedrock:InvokeModelWithResponseStream</code></div>
+          <div class="res">inference-profile/us.anthropic.claude-sonnet-4-6</div>
+          <div class="fails"><span>if denied</span> ResourceNotFoundException when model access is not granted for the account, which surfaces at invoke time - never at provision time.</div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>telemetry</h4>
+          <div class="produces"><span>yields</span> CloudWatch log stream + X-Ray trace</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">13</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">logs:CreateLogGroup</code><code class="act">logs:CreateLogStream</code><code class="act">logs:PutLogEvents</code><code class="act">xray:PutTraceSegments</code></div>
+          <div class="res">log-group:/aws/bedrock-agentcore/runtimes/coverage-*</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="teardown">
+        <div class="phase-head"><h3>Teardown</h3><p>Remove the resources</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>delete</h4>
+          <div class="produces"><span>yields</span> nothing (resources removed)</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">14</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:DeleteAgentRuntime</code><code class="act">bedrock-agentcore:DeleteMemory</code><code class="act">ecr:DeleteRepository</code><code class="act">iam:DeleteRole</code></div>
+          <div class="res">runtime/coverage</div><div class="res">memory/coverage_mem</div><div class="res">repository/bedrock-agentcore-coverage</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+    </div>
+    <div class="agent" id="agent-intake" hidden>
+      <div class="agent-head">
+        <h2>Intake &amp; Document Intelligence</h2>
+        <div class="meta"><code>gcp-adk</code><code>us.amazon.nova-pro-v1:0</code></div>
+      </div>
+      
+      <section class="phase" data-phase="build">
+        <div class="phase-head"><h3>Build</h3><p>Produce the container image</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>upload source</h4>
+          <div class="produces"><span>yields</span> source.zip in the CodeBuild source bucket</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">1</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">s3:PutObject</code></div>
+          <div class="res">s3://bedrock-agentcore-codebuild-sources-*/intake/</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>start build</h4>
+          <div class="produces"><span>yields</span> buildId (CodeBuild)</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">2</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">codebuild:StartBuild</code><code class="act">codebuild:BatchGetBuilds</code></div>
+          <div class="res">project/bedrock-agentcore-intake-builder</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>push image</h4>
+          <div class="produces"><span>yields</span> image sha256 digest in ECR</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">3</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-build-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">ecr:GetAuthorizationToken</code><code class="act">ecr:InitiateLayerUpload</code><code class="act">ecr:UploadLayerPart</code><code class="act">ecr:CompleteLayerUpload</code><code class="act">ecr:PutImage</code><code class="act">s3:GetObject</code><code class="act">logs:PutLogEvents</code></div>
+          <div class="res">repository/bedrock-agentcore-intake</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="provision">
+        <div class="phase-head"><h3>Provision</h3><p>Create or update the runtime</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create execution role</h4>
+          <div class="produces"><span>yields</span> execution role ARN</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">4</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">iam:CreateRole</code><code class="act">iam:PutRolePolicy</code><code class="act">iam:AttachRolePolicy</code><code class="act">iam:GetRole</code></div>
+          <div class="res">role/AmazonBedrockAgentCoreSDKRuntime-*</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create memory</h4>
+          <div class="produces"><span>yields</span> memoryId + memoryArn</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">5</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateMemory</code><code class="act">bedrock-agentcore:GetMemory</code></div>
+          <div class="res">memory/intake_mem</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create or update runtime</h4>
+          <div class="produces"><span>yields</span> agentRuntimeArn, agentRuntimeId, agentRuntimeVersion</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">6</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateAgentRuntime</code><code class="act">bedrock-agentcore:UpdateAgentRuntime</code><code class="act">bedrock-agentcore:GetAgentRuntime</code><code class="act">bedrock-agentcore:ListAgentRuntimes</code></div>
+          <div class="res">runtime/intake</div>
+          <div class="also"><code class="act warn">iam:PassRole</code><div class="why">The runtime runs AS the execution role. PassRole is the control deciding who may hand that role to the service - the single most privilege-sensitive grant in provisioning.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>pin endpoint</h4>
+          <div class="produces"><span>yields</span> endpoint targetVersion (pinned)</div><div class="note">Sets targetVersion. Unpinned, the endpoint floats onto new versions.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">7</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:UpdateAgentRuntimeEndpoint</code><code class="act">bedrock-agentcore:GetAgentRuntimeEndpoint</code><code class="act">bedrock-agentcore:ListAgentRuntimeEndpoints</code></div>
+          <div class="res">runtime-endpoint/risk/DEFAULT</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="invoke">
+        <div class="phase-head"><h3>Invoke</h3><p>Serve one request</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>authorize caller</h4>
+          <div class="produces"><span>yields</span> runtimeSessionId</div><div class="note">Data-plane call. NOT recorded in CloudTrail management events, so this hop has no audit trail by default - the reason it must be declared.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">8</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">console-instance</code> <code class="pr">orchestrator</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:InvokeAgentRuntime</code></div>
+          <div class="res">runtime/intake</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>assume execution role</h4>
+          <div class="produces"><span>yields</span> temporary STS credentials for the runtime</div><div class="note">Trust policy, not an identity policy - the other half of PassRole.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">9</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">bedrock-agentcore.amazonaws.com</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">sts:AssumeRole</code></div>
+          <div class="res">role/AmazonBedrockAgentCoreSDKRuntime-*</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>session memory</h4>
+          <div class="produces"><span>yields</span> session event records</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">11</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateEvent</code><code class="act">bedrock-agentcore:ListEvents</code><code class="act">bedrock-agentcore:RetrieveMemoryRecords</code></div>
+          <div class="res">memory/intake_mem</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>model invoke</h4>
+          <div class="produces"><span>yields</span> claim_record (claimant, loss, line items, totals)</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">12</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock:InvokeModel</code><code class="act">bedrock:InvokeModelWithResponseStream</code></div>
+          <div class="res">inference-profile/us.amazon.nova-pro-v1:0</div>
+          <div class="fails"><span>if denied</span> ResourceNotFoundException when model access is not granted for the account, which surfaces at invoke time - never at provision time.</div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>telemetry</h4>
+          <div class="produces"><span>yields</span> CloudWatch log stream + X-Ray trace</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">13</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">logs:CreateLogGroup</code><code class="act">logs:CreateLogStream</code><code class="act">logs:PutLogEvents</code><code class="act">xray:PutTraceSegments</code></div>
+          <div class="res">log-group:/aws/bedrock-agentcore/runtimes/intake-*</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="teardown">
+        <div class="phase-head"><h3>Teardown</h3><p>Remove the resources</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>delete</h4>
+          <div class="produces"><span>yields</span> nothing (resources removed)</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">14</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:DeleteAgentRuntime</code><code class="act">bedrock-agentcore:DeleteMemory</code><code class="act">ecr:DeleteRepository</code><code class="act">iam:DeleteRole</code></div>
+          <div class="res">runtime/intake</div><div class="res">memory/intake_mem</div><div class="res">repository/bedrock-agentcore-intake</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+    </div>
+    <div class="agent" id="agent-orchestrator" hidden>
+      <div class="agent-head">
+        <h2>Claude SDK Supervisor</h2>
+        <div class="meta"><code>claude-agent-sdk</code><code>us.anthropic.claude-sonnet-4-6</code></div>
+      </div>
+      
+      <section class="phase" data-phase="build">
+        <div class="phase-head"><h3>Build</h3><p>Produce the container image</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>upload source</h4>
+          <div class="produces"><span>yields</span> source.zip in the CodeBuild source bucket</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">1</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">s3:PutObject</code></div>
+          <div class="res">s3://bedrock-agentcore-codebuild-sources-*/orchestrator/</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>start build</h4>
+          <div class="produces"><span>yields</span> buildId (CodeBuild)</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">2</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">codebuild:StartBuild</code><code class="act">codebuild:BatchGetBuilds</code></div>
+          <div class="res">project/bedrock-agentcore-orchestrator-builder</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>push image</h4>
+          <div class="produces"><span>yields</span> image sha256 digest in ECR</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">3</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-build-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">ecr:GetAuthorizationToken</code><code class="act">ecr:InitiateLayerUpload</code><code class="act">ecr:UploadLayerPart</code><code class="act">ecr:CompleteLayerUpload</code><code class="act">ecr:PutImage</code><code class="act">s3:GetObject</code><code class="act">logs:PutLogEvents</code></div>
+          <div class="res">repository/bedrock-agentcore-orchestrator</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="provision">
+        <div class="phase-head"><h3>Provision</h3><p>Create or update the runtime</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create execution role</h4>
+          <div class="produces"><span>yields</span> execution role ARN</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">4</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">iam:CreateRole</code><code class="act">iam:PutRolePolicy</code><code class="act">iam:AttachRolePolicy</code><code class="act">iam:GetRole</code></div>
+          <div class="res">role/AmazonBedrockAgentCoreSDKRuntime-*</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create memory</h4>
+          <div class="produces"><span>yields</span> memoryId + memoryArn</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">5</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateMemory</code><code class="act">bedrock-agentcore:GetMemory</code></div>
+          <div class="res">memory/orchestrator_mem</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create or update runtime</h4>
+          <div class="produces"><span>yields</span> agentRuntimeArn, agentRuntimeId, agentRuntimeVersion</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">6</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateAgentRuntime</code><code class="act">bedrock-agentcore:UpdateAgentRuntime</code><code class="act">bedrock-agentcore:GetAgentRuntime</code><code class="act">bedrock-agentcore:ListAgentRuntimes</code></div>
+          <div class="res">runtime/orchestrator</div>
+          <div class="also"><code class="act warn">iam:PassRole</code><div class="why">The runtime runs AS the execution role. PassRole is the control deciding who may hand that role to the service - the single most privilege-sensitive grant in provisioning.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>pin endpoint</h4>
+          <div class="produces"><span>yields</span> endpoint targetVersion (pinned)</div><div class="note">Sets targetVersion. Unpinned, the endpoint floats onto new versions.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">7</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:UpdateAgentRuntimeEndpoint</code><code class="act">bedrock-agentcore:GetAgentRuntimeEndpoint</code><code class="act">bedrock-agentcore:ListAgentRuntimeEndpoints</code></div>
+          <div class="res">runtime-endpoint/orchestrator/DEFAULT</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="invoke">
+        <div class="phase-head"><h3>Invoke</h3><p>Serve one request</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>authorize caller</h4>
+          <div class="produces"><span>yields</span> runtimeSessionId</div><div class="note">Data-plane call. NOT recorded in CloudTrail management events, so this hop has no audit trail by default - the reason it must be declared.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">8</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">console-instance</code> <code class="pr">orchestrator</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:InvokeAgentRuntime</code></div>
+          <div class="res">runtime/orchestrator</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>invoke downstream agents</h4>
+          <div class="produces"><span>yields</span> specialist response envelopes</div><div class="note">Granted by the InvokeSpecialistRuntimes inline policy. Each dependency edge in spec.dependencies produces one statement here.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">9</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:InvokeAgentRuntime</code></div>
+          <div class="res">runtime/intake</div><div class="res">runtime/coverage</div><div class="res">runtime/risk</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>assume execution role</h4>
+          <div class="produces"><span>yields</span> temporary STS credentials for the runtime</div><div class="note">Trust policy, not an identity policy - the other half of PassRole.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">9</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">bedrock-agentcore.amazonaws.com</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">sts:AssumeRole</code></div>
+          <div class="res">role/AmazonBedrockAgentCoreSDKRuntime-*</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>model discovery</h4>
+          <div class="produces"><span>yields</span> list of invokable inference profiles</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">10</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock:ListInferenceProfiles</code><code class="act">bedrock:GetInferenceProfile</code></div>
+          <div class="res">inference-profile/*</div>
+          <div class="fails"><span>if denied</span> AccessDenied, after which the bundled CLI silently falls back to a hardcoded model list and reports a model unrelated to the configured one.</div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>session memory</h4>
+          <div class="produces"><span>yields</span> session event records</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">11</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateEvent</code><code class="act">bedrock-agentcore:ListEvents</code><code class="act">bedrock-agentcore:RetrieveMemoryRecords</code></div>
+          <div class="res">memory/orchestrator_mem</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>model invoke</h4>
+          <div class="produces"><span>yields</span> final decision + recommended payout</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">12</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock:InvokeModel</code><code class="act">bedrock:InvokeModelWithResponseStream</code></div>
+          <div class="res">inference-profile/us.anthropic.claude-sonnet-4-6</div>
+          <div class="fails"><span>if denied</span> ResourceNotFoundException when model access is not granted for the account, which surfaces at invoke time - never at provision time.</div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>telemetry</h4>
+          <div class="produces"><span>yields</span> CloudWatch log stream + X-Ray trace</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">13</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">logs:CreateLogGroup</code><code class="act">logs:CreateLogStream</code><code class="act">logs:PutLogEvents</code><code class="act">xray:PutTraceSegments</code></div>
+          <div class="res">log-group:/aws/bedrock-agentcore/runtimes/orchestrator-*</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="teardown">
+        <div class="phase-head"><h3>Teardown</h3><p>Remove the resources</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>delete</h4>
+          <div class="produces"><span>yields</span> nothing (resources removed)</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">14</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:DeleteAgentRuntime</code><code class="act">bedrock-agentcore:DeleteMemory</code><code class="act">ecr:DeleteRepository</code><code class="act">iam:DeleteRole</code></div>
+          <div class="res">runtime/orchestrator</div><div class="res">memory/orchestrator_mem</div><div class="res">repository/bedrock-agentcore-orchestrator</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+    </div>
+    <div class="agent" id="agent-risk" hidden>
+      <div class="agent-head">
+        <h2>Risk, Fraud &amp; Compliance</h2>
+        <div class="meta"><code>langchain</code><code>us.amazon.nova-pro-v1:0</code></div>
+      </div>
+      
+      <section class="phase" data-phase="build">
+        <div class="phase-head"><h3>Build</h3><p>Produce the container image</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>upload source</h4>
+          <div class="produces"><span>yields</span> source.zip in the CodeBuild source bucket</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">1</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">s3:PutObject</code></div>
+          <div class="res">s3://bedrock-agentcore-codebuild-sources-*/risk/</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>start build</h4>
+          <div class="produces"><span>yields</span> buildId (CodeBuild)</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">2</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">codebuild:StartBuild</code><code class="act">codebuild:BatchGetBuilds</code></div>
+          <div class="res">project/bedrock-agentcore-risk-builder</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>push image</h4>
+          <div class="produces"><span>yields</span> image sha256 digest in ECR</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">3</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-build-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">ecr:GetAuthorizationToken</code><code class="act">ecr:InitiateLayerUpload</code><code class="act">ecr:UploadLayerPart</code><code class="act">ecr:CompleteLayerUpload</code><code class="act">ecr:PutImage</code><code class="act">s3:GetObject</code><code class="act">logs:PutLogEvents</code></div>
+          <div class="res">repository/bedrock-agentcore-risk</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="provision">
+        <div class="phase-head"><h3>Provision</h3><p>Create or update the runtime</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create execution role</h4>
+          <div class="produces"><span>yields</span> execution role ARN</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">4</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">iam:CreateRole</code><code class="act">iam:PutRolePolicy</code><code class="act">iam:AttachRolePolicy</code><code class="act">iam:GetRole</code></div>
+          <div class="res">role/AmazonBedrockAgentCoreSDKRuntime-*</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create memory</h4>
+          <div class="produces"><span>yields</span> memoryId + memoryArn</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">5</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateMemory</code><code class="act">bedrock-agentcore:GetMemory</code></div>
+          <div class="res">memory/risk_mem</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>create or update runtime</h4>
+          <div class="produces"><span>yields</span> agentRuntimeArn, agentRuntimeId, agentRuntimeVersion</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">6</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateAgentRuntime</code><code class="act">bedrock-agentcore:UpdateAgentRuntime</code><code class="act">bedrock-agentcore:GetAgentRuntime</code><code class="act">bedrock-agentcore:ListAgentRuntimes</code></div>
+          <div class="res">runtime/risk</div>
+          <div class="also"><code class="act warn">iam:PassRole</code><div class="why">The runtime runs AS the execution role. PassRole is the control deciding who may hand that role to the service - the single most privilege-sensitive grant in provisioning.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>pin endpoint</h4>
+          <div class="produces"><span>yields</span> endpoint targetVersion (pinned)</div><div class="note">Sets targetVersion. Unpinned, the endpoint floats onto new versions.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">7</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:UpdateAgentRuntimeEndpoint</code><code class="act">bedrock-agentcore:GetAgentRuntimeEndpoint</code><code class="act">bedrock-agentcore:ListAgentRuntimeEndpoints</code></div>
+          <div class="res">runtime-endpoint/risk/DEFAULT</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="invoke">
+        <div class="phase-head"><h3>Invoke</h3><p>Serve one request</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>authorize caller</h4>
+          <div class="produces"><span>yields</span> runtimeSessionId</div><div class="note">Data-plane call. NOT recorded in CloudTrail management events, so this hop has no audit trail by default - the reason it must be declared.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">8</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">console-instance</code> <code class="pr">orchestrator</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:InvokeAgentRuntime</code></div>
+          <div class="res">runtime/risk</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>assume execution role</h4>
+          <div class="produces"><span>yields</span> temporary STS credentials for the runtime</div><div class="note">Trust policy, not an identity policy - the other half of PassRole.</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">9</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">bedrock-agentcore.amazonaws.com</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">sts:AssumeRole</code></div>
+          <div class="res">role/AmazonBedrockAgentCoreSDKRuntime-*</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>session memory</h4>
+          <div class="produces"><span>yields</span> session event records</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">11</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:CreateEvent</code><code class="act">bedrock-agentcore:ListEvents</code><code class="act">bedrock-agentcore:RetrieveMemoryRecords</code></div>
+          <div class="res">memory/risk_mem</div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>model invoke</h4>
+          <div class="produces"><span>yields</span> fraud score, risk level, flags with guideline citations</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">12</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock:InvokeModel</code><code class="act">bedrock:InvokeModelWithResponseStream</code></div>
+          <div class="res">inference-profile/us.amazon.nova-pro-v1:0</div>
+          <div class="fails"><span>if denied</span> ResourceNotFoundException when model access is not granted for the account, which surfaces at invoke time - never at provision time.</div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>telemetry</h4>
+          <div class="produces"><span>yields</span> CloudWatch log stream + X-Ray trace</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">13</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">agent-runtime-execution</code><span class="badge no">no audit record</span></div>
+          <div class="acts"><code class="act">logs:CreateLogGroup</code><code class="act">logs:CreateLogStream</code><code class="act">logs:PutLogEvents</code><code class="act">xray:PutTraceSegments</code></div>
+          <div class="res">log-group:/aws/bedrock-agentcore/runtimes/risk-*</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+      <section class="phase" data-phase="teardown">
+        <div class="phase-head"><h3>Teardown</h3><p>Remove the resources</p></div>
+        
+    <div class="row">
+      <div class="left">
+        <div class="card">
+          <h4>delete</h4>
+          <div class="produces"><span>yields</span> nothing (resources removed)</div>
+        </div>
+      </div>
+      <div class="spine"><span class="dot">14</span></div>
+      <div class="right">
+        <div class="card iam">
+          <div class="who"><code class="pr">operator</code><span class="badge ok">audited</span></div>
+          <div class="acts"><code class="act">bedrock-agentcore:DeleteAgentRuntime</code><code class="act">bedrock-agentcore:DeleteMemory</code><code class="act">ecr:DeleteRepository</code><code class="act">iam:DeleteRole</code></div>
+          <div class="res">runtime/risk</div><div class="res">memory/risk_mem</div><div class="res">repository/bedrock-agentcore-risk</div>
+          
+        </div>
+      </div>
+    </div>
+      </section>
+    </div>
+</main>
+<script>
+const counts = {"coverage": 14, "intake": 13, "orchestrator": 15, "risk": 13};
+const tabs = [...document.querySelectorAll('.tab')];
+function show(name) {
+  document.querySelectorAll('.agent').forEach(a => a.hidden = (a.id !== 'agent-' + name));
+  tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.agent === name)));
+  location.hash = name;
+}
+tabs.forEach(t => {
+  t.textContent = t.dataset.agent + ' \u00b7 ' + counts[t.dataset.agent] + ' steps';
+  t.onclick = () => show(t.dataset.agent);
+});
+show(location.hash.slice(1) in counts ? location.hash.slice(1) : tabs[0].dataset.agent);
+</script>
+</body></html>

@@ -28,6 +28,34 @@ ROOT = Path(__file__).resolve().parent.parent
 AGENT_DIR = ROOT / "agents"                 # one directory per agent
 ALLOWLIST = ROOT / "policies" / "allowlist.yaml"
 PLATFORM = ROOT / "infra" / "platform.yaml"
+SCHEMA_DIR = ROOT / "infra" / "schemas"
+RELEASE = ROOT / "infra" / "release.yaml"
+
+
+def _schema(name: str):
+    """Load a JSON Schema, or None if schemas/jsonschema are unavailable."""
+    import json
+    path = SCHEMA_DIR / f"{name}.schema.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def check_schema(doc: dict, schema_name: str, label: str) -> None:
+    """Structural validation. A typo'd field is an error, not a silent no-op."""
+    try:
+        import jsonschema
+    except ImportError:
+        warnings.append("jsonschema not installed - structural validation skipped")
+        return
+    schema = _schema(schema_name)
+    if schema is None:
+        warnings.append(f"no schema found for {schema_name}")
+        return
+    validator = jsonschema.Draft202012Validator(schema)
+    for e in sorted(validator.iter_errors(doc), key=lambda x: list(x.path)):
+        where = "/".join(str(p) for p in e.path) or "(root)"
+        err(f"{label}: schema violation at {where}: {e.message}")
 
 # The module holding each agent's DEFAULT_MODEL literal, relative to its own
 # directory, so manifest and code cannot silently disagree.
@@ -92,8 +120,22 @@ def main() -> int:
             if name != path.parent.name:
                 err(f"{path.parent.name}/: directory name does not match "
                     f"metadata.name {name!r} - one agent, one directory")
-            if not (path.parent / "agent-card.yaml").exists():
-                warnings.append(f"{name}: no agent-card.yaml alongside agent.yaml")
+            card_path = path.parent / "agent-card.yaml"
+            if not card_path.exists():
+                err(f"{name}: no agent-card.yaml alongside agent.yaml")
+            else:
+                try:
+                    card = yaml.safe_load(card_path.read_text(encoding="utf-8")) or {}
+                except yaml.YAMLError as exc:
+                    err(f"{name}/agent-card.yaml: does not parse - {exc}")
+                    card = None
+                if card is not None:
+                    check_schema(card, "agent-card", f"{name}/agent-card.yaml")
+                    if card.get("name") != name:
+                        err(f"{name}/agent-card.yaml: name {card.get('name')!r} "
+                            f"does not match the agent")
+
+        check_schema(doc, "agent-runtime", path.parent.name + "/agent.yaml")
 
         # 6. leakage
         text = path.read_text(encoding="utf-8")
@@ -164,6 +206,27 @@ def main() -> int:
                 if declared and binding.get("injectAs") != declared:
                     err(f"platform.yaml: binding for {target!r} injects "
                         f"{binding.get('injectAs')!r} but the manifest declares {declared!r}")
+
+    # 7. release pins - the two things Terraform cannot express without them
+    if not RELEASE.exists():
+        warnings.append("infra/release.yaml missing - run scripts/snapshot-deployment.py "
+                        "(Terraform needs a digest and a pinned runtime version)")
+    else:
+        rel = yaml.safe_load(RELEASE.read_text(encoding="utf-8")) or {}
+        pinned = {a.get("name"): a for a in (dig(rel, "spec", "agents") or [])}
+        for name in manifests:
+            entry = pinned.get(name)
+            if entry is None:
+                err(f"{name}: no entry in infra/release.yaml - nothing pins its image")
+                continue
+            digest = dig(entry, "image", "digest") or ""
+            if not digest.startswith("sha256:"):
+                err(f"{name}: release digest is {digest!r}, not a sha256 digest - "
+                    f"deploying by tag is not reproducible")
+            target = str(dig(entry, "endpoint", "targetVersion") or "")
+            if not target or target in {"None", "null"}:
+                err(f"{name}: endpoint targetVersion is unpinned - the endpoint floats "
+                    f"and will keep serving an old version silently")
 
     return report()
 

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-core/schemas/agent-card.schema.json",
+  "title": "AgentCard",
+  "description": "Caller-facing capability card. Lives at agents/<name>/agent-card.yaml.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "name", "description", "version", "skills"],
+  "properties": {
+    "apiVersion": { "const": "a2a/v1" },
+    "kind": { "const": "AgentCard" },
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+    "displayName": { "type": "string" },
+    "description": { "type": "string", "minLength": 10 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "protocolVersion": { "type": "string" },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "organization": { "type": "string" },
+        "framework": { "type": "string" }
+      }
+    },
+    "interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "transport": { "enum": ["bedrock-agentcore", "http"] },
+        "protocol": { "enum": ["HTTP", "MCP", "A2A", "AGUI"] },
+        "path": { "type": "string" },
+        "url": { "type": "string" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "streaming": { "type": "boolean" },
+        "pushNotifications": { "type": "boolean" },
+        "stateTransitionHistory": { "type": "boolean" },
+        "delegatesTo": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "defaultInputModes": { "type": "array", "items": { "type": "string" } },
+    "defaultOutputModes": { "type": "array", "items": { "type": "string" } },
+    "security": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scheme"],
+        "properties": {
+          "scheme": { "enum": ["aws-iam", "oauth2", "api-key", "none"] },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "knowledgeSources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "grounding": { "enum": ["required", "optional", "none"] }
+        }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "description"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "name": { "type": "string" },
+          "description": { "type": "string", "minLength": 10 },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "examples": { "type": "array", "items": { "type": "string" } },
+          "inputModes": { "type": "array", "items": { "type": "string" } },
+          "outputModes": { "type": "array", "items": { "type": "string" } },
+          "input": { "type": "object" },
+          "output": { "type": "object" }
+        }
+      }
+    }
+  }
+}

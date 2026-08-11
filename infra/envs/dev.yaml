@@ -1,0 +1,59 @@
+apiVersion: agentcore/v1
+kind: Environment
+
+metadata:
+  name: dev
+  description: >-
+    Values that differ per environment. The agent manifests stay
+    environment-independent; the provisioner merges this over them.
+    Merge order is platform-last, so an env can widen but an agent cannot
+    override a platform-injected value.
+
+spec:
+  region: us-east-1
+  accountAlias: agent-core-dev
+
+  tags:
+    Environment: dev
+    Project: agent-core
+    ManagedBy: terraform
+    CostCenter: prototyping
+
+  # Applied to every agent unless its manifest is more specific.
+  agentDefaults:
+    runtime:
+      networkMode: PUBLIC
+      lifecycle:
+        idleSessionTimeoutSeconds: 900
+        maxLifetimeSeconds: 28800
+    memory:
+      eventExpiryDays: 30
+    observability:
+      logRetentionDays: 7
+
+  # Per-agent overrides. Useful for trying a cheaper model in dev without
+  # touching the manifest.
+  agentOverrides: {}
+  #  coverage:
+  #    model:
+  #      id: us.amazon.nova-pro-v1:0
+
+  services:
+    web-console:
+      cpu: 1024
+      memory: 2048
+      autoDeploy: false
+
+  governance:
+    # Dev is the only place the on-disk signing key is tolerable, and even here
+    # it means certificates do not survive a restart.
+    signingMode: kms
+    allowLocalFallback: false
+    allowRawBypass: true          # lets the demo show the ungated path
+    certificateExpiryDays: 30
+
+  costControls:
+    pauseConsoleWhenIdle: true
+    notes: >-
+      App Runner bills whenever the service is RUNNING, not per request.
+      Pause it between demos.

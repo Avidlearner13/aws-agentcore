@@ -22,8 +22,32 @@ infra/
   bootstrap.yaml       # kind: Bootstrap       — remote state + locking (apply first, once)
   platform.yaml        # kind: Platform        — registry, build, IAM, secrets, gateways, console
   governance.yaml      # kind: GovernanceStore — cert signing key, cert store, policy enforcement
+  release.yaml         # kind: Release         — GENERATED: pinned digests + runtime versions
+  import.yaml          # kind: ImportMap       — GENERATED: logical name -> existing resource id
+  envs/{dev,prod}.yaml # kind: Environment     — the values that differ per environment
+  schemas/*.json       # JSON Schema per kind — structural validation, not convention
   validate.py          # drift check — run in CI and before every apply
 ```
+
+### Hand-authored vs generated
+
+`release.yaml` and `import.yaml` are produced by
+`scripts/snapshot-deployment.py`, which reads the live account. **Do not edit
+them** — re-run the script after every deploy; the diff is your release note.
+
+| | Hand-authored | Generated |
+|---|---|---|
+| Says | what you *want* | what is *actually deployed* |
+| Files | `agents/*/agent.yaml`, `platform.yaml`, `governance.yaml`, `bootstrap.yaml`, `envs/*` | `release.yaml`, `import.yaml` |
+
+They exist because Terraform needs two things a desired-state manifest cannot
+supply: a **content digest** for `container_uri` (the toolkit tags images with a
+timestamp, which is not a stable identifier) and a **pinned `target_version`**
+for the runtime endpoint (an unset target floats, so the endpoint keeps serving
+an old version with no error). `validate.py` fails if either is missing.
+
+`import.yaml` exists because every resource already exists. Without importing
+them, a first `terraform apply` tries to create duplicates.
 
 **Adding an agent is adding a directory.** A provisioner discovers
 `agents/*/agent.yaml` and iterates; nothing else changes. The directory name must

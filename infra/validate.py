@@ -139,12 +139,15 @@ def main() -> int:
 
         # 6. leakage
         text = path.read_text(encoding="utf-8")
+        label = f"{path.parent.name}/{path.name}"
         if re.search(r"\b\d{12}\b", text):
-            err(f"{path.name}: contains what looks like an AWS account ID")
+            err(f"{label}: contains what looks like an AWS account ID")
         if "arn:aws:" in text:
-            err(f"{path.name}: contains a hardcoded ARN")
-        if re.search(r"[A-Za-z]:[\\/]", text):
-            err(f"{path.name}: contains an absolute filesystem path")
+            err(f"{label}: contains a hardcoded ARN")
+        # A Windows drive letter is a SINGLE letter not preceded by another word
+        # character - otherwise this fires on "log-group:/aws/..." and "s3://".
+        if re.search(r"(?<![\w-])[A-Za-z]:[\\/]", text):
+            err(f"{label}: contains an absolute filesystem path")
 
         # 2. allow-list
         model = dig(doc, "spec", "model", "id")
@@ -207,7 +210,31 @@ def main() -> int:
                     err(f"platform.yaml: binding for {target!r} injects "
                         f"{binding.get('injectAs')!r} but the manifest declares {declared!r}")
 
-    # 7. release pins - the two things Terraform cannot express without them
+    # 7. control-flow principals must resolve to something real
+    known_roles: set[str] = set()
+    if PLATFORM.exists():
+        pf = yaml.safe_load(PLATFORM.read_text(encoding="utf-8")) or {}
+        known_roles = {r.get("name") for r in (dig(pf, "spec", "iam", "roles") or [])}
+    for name, doc in manifests.items():
+        controls = dig(doc, "spec", "controls") or {}
+        seen_steps: set[str] = set()
+        for phase, entries in controls.items():
+            for entry in entries or []:
+                step = entry.get("step", "?")
+                if step in seen_steps:
+                    err(f"{name}: duplicate control step {step!r}")
+                seen_steps.add(step)
+                principals = entry.get("principal")
+                for pr in (principals if isinstance(principals, list) else [principals]):
+                    if (pr in known_roles or pr in manifests or pr == "operator"
+                            or str(pr).endswith(".amazonaws.com")):
+                        continue
+                    err(f"{name}: control step {step!r} names unknown principal {pr!r} "
+                        f"- not an IAM role in platform.yaml, an agent, or a service principal")
+        if controls and "invoke" not in controls:
+            warnings.append(f"{name}: declares controls but no invoke phase")
+
+    # 8. release pins - the two things Terraform cannot express without them
     if not RELEASE.exists():
         warnings.append("infra/release.yaml missing - run scripts/snapshot-deployment.py "
                         "(Terraform needs a digest and a pinned runtime version)")

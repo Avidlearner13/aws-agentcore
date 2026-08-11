@@ -70,6 +70,124 @@ spec:
 
   data: []
 
+  # IAM controls across the full lifecycle, in the order they are evaluated.
+  # Each entry is one authorization decision: who is being checked, for what
+  # action, on what resource, and whether it leaves an audit record.
+  # This is the map to configure IAM from - anything granted but not listed
+  # here is over-permission.
+  controls:
+
+    # --- build the image -----------------------------------------------------
+    build:
+      - step: 1-upload-source
+        principal: operator
+        actions: [s3:PutObject]
+        resource: s3://bedrock-agentcore-codebuild-sources-*/coverage/
+        audit: none
+      - step: 2-start-build
+        principal: operator
+        actions: [codebuild:StartBuild, codebuild:BatchGetBuilds]
+        resource: project/bedrock-agentcore-coverage-builder
+        audit: cloudtrail
+      - step: 3-push-image
+        principal: agent-build-execution
+        actions: [ecr:GetAuthorizationToken, ecr:InitiateLayerUpload,
+                  ecr:UploadLayerPart, ecr:CompleteLayerUpload, ecr:PutImage,
+                  s3:GetObject, logs:PutLogEvents]
+        resource: repository/bedrock-agentcore-coverage
+        audit: cloudtrail
+
+    # --- provision the runtime ----------------------------------------------
+    provision:
+      - step: 4-create-execution-role
+        principal: operator
+        actions: [iam:CreateRole, iam:PutRolePolicy, iam:AttachRolePolicy, iam:GetRole]
+        resource: role/AmazonBedrockAgentCoreSDKRuntime-*
+        audit: cloudtrail
+      - step: 5-create-memory
+        principal: operator
+        actions: [bedrock-agentcore:CreateMemory, bedrock-agentcore:GetMemory]
+        resource: memory/coverage_mem
+        audit: cloudtrail
+      - step: 6-create-or-update-runtime
+        principal: operator
+        actions: [bedrock-agentcore:CreateAgentRuntime,
+                  bedrock-agentcore:UpdateAgentRuntime,
+                  bedrock-agentcore:GetAgentRuntime,
+                  bedrock-agentcore:ListAgentRuntimes]
+        resource: runtime/coverage
+        audit: cloudtrail
+        alsoRequires:
+          - action: iam:PassRole
+            resource: role/AmazonBedrockAgentCoreSDKRuntime-*
+            why: >-
+              The runtime runs AS the execution role. PassRole is the control
+              deciding who may hand that role to the service - the single most
+              privilege-sensitive grant in provisioning.
+      - step: 7-pin-endpoint
+        principal: operator
+        actions: [bedrock-agentcore:UpdateAgentRuntimeEndpoint,
+                  bedrock-agentcore:GetAgentRuntimeEndpoint,
+                  bedrock-agentcore:ListAgentRuntimeEndpoints]
+        resource: runtime-endpoint/coverage/DEFAULT
+        audit: cloudtrail
+        note: Sets targetVersion. Unpinned, the endpoint floats onto new versions.
+
+    # --- serve a request -----------------------------------------------------
+    invoke:
+      - step: 8-authorize-caller
+        principal: [console-instance, orchestrator]
+        actions: [bedrock-agentcore:InvokeAgentRuntime]
+        resource: runtime/coverage
+        audit: none
+        note: >-
+          Data-plane call. NOT recorded in CloudTrail management events, so this
+          hop has no audit trail by default - the reason it must be declared.
+      - step: 9-assume-execution-role
+        principal: bedrock-agentcore.amazonaws.com
+        actions: [sts:AssumeRole]
+        resource: role/AmazonBedrockAgentCoreSDKRuntime-*
+        audit: cloudtrail
+        note: Trust policy, not an identity policy - the other half of PassRole.
+      - step: 10-model-discovery
+        principal: agent-runtime-execution
+        actions: [bedrock:ListInferenceProfiles, bedrock:GetInferenceProfile]
+        resource: inference-profile/*
+        audit: cloudtrail
+        failsAs: >-
+          AccessDenied, after which the bundled CLI silently falls back to a
+          hardcoded model list and reports a model unrelated to the configured one.
+      - step: 11-session-memory
+        principal: agent-runtime-execution
+        actions: [bedrock-agentcore:CreateEvent, bedrock-agentcore:ListEvents,
+                  bedrock-agentcore:RetrieveMemoryRecords]
+        resource: memory/coverage_mem
+        audit: none
+      - step: 12-model-invoke
+        principal: agent-runtime-execution
+        actions: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+        resource: inference-profile/us.anthropic.claude-sonnet-4-6
+        audit: cloudtrail
+        failsAs: >-
+          ResourceNotFoundException when model access is not granted for the
+          account, which surfaces at invoke time - never at provision time.
+      - step: 13-telemetry
+        principal: agent-runtime-execution
+        actions: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents,
+                  xray:PutTraceSegments]
+        resource: log-group:/aws/bedrock-agentcore/runtimes/coverage-*
+        audit: none
+
+    # --- teardown ------------------------------------------------------------
+    teardown:
+      - step: 14-delete
+        principal: operator
+        actions: [bedrock-agentcore:DeleteAgentRuntime,
+                  bedrock-agentcore:DeleteMemory,
+                  ecr:DeleteRepository, iam:DeleteRole]
+        resource: [runtime/coverage, memory/coverage_mem, repository/bedrock-agentcore-coverage]
+        audit: cloudtrail
+
   console:
     key: coverage
     group: specialist

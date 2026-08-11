@@ -238,7 +238,73 @@
             "localPort": { "type": "integer", "minimum": 1024, "maximum": 65535 }
           }
         },
-        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "controls": {
+          "type": "object",
+          "description": "IAM authorization decisions across the lifecycle, in evaluation order.",
+          "additionalProperties": false,
+          "properties": {
+            "build": { "$ref": "#/$defs/controlPhase" },
+            "provision": { "$ref": "#/$defs/controlPhase" },
+            "invoke": { "$ref": "#/$defs/controlPhase" },
+            "teardown": { "$ref": "#/$defs/controlPhase" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "controlPhase": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step", "principal", "actions"],
+        "properties": {
+          "step": {
+            "type": "string",
+            "pattern": "^\\d+-[a-z0-9-]+$",
+            "description": "Ordinal plus slug, so the flow reads in sequence."
+          },
+          "principal": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+            ],
+            "description": "Logical role name from platform.iam.roles, an agent name, or an AWS service principal."
+          },
+          "actions": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^[a-z0-9-]+:[A-Za-z*]+$" },
+            "description": "Empty array means this step needs no IAM grant - state it rather than omit it."
+          },
+          "resource": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } }
+            ]
+          },
+          "audit": {
+            "enum": ["cloudtrail", "none"],
+            "description": "Whether the decision leaves a CloudTrail management-event record. Data-plane calls do not."
+          },
+          "failsAs": { "type": "string", "description": "The observable symptom when this grant is missing." },
+          "note": { "type": "string" },
+          "derivedFrom": { "type": "string", "description": "Manifest field this grant is generated from." },
+          "alsoRequires": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["action", "resource"],
+              "properties": {
+                "action": { "type": "string" },
+                "resource": { "type": "string" },
+                "why": { "type": "string" }
+              }
+            }
+          }
+        }
       }
     }
   }

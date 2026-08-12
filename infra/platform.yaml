@@ -73,6 +73,44 @@ spec:
   # ---------------------------------------------------------------------------
   iam:
     roles:
+      - name: operator
+        description: >-
+          Infrastructure team. One-time provisioning and teardown: roles,
+          runtimes, memory, registries. Holds wildcard iam:PassRole.
+        trustedPrincipal: infra-team
+        permissions:
+          - iam:CreateRole
+          - iam:PutRolePolicy
+          - iam:AttachRolePolicy
+          - iam:PassRole
+          - bedrock-agentcore:CreateAgentRuntime
+          - bedrock-agentcore:CreateMemory
+          - bedrock-agentcore:Delete*
+          - ecr:CreateRepository
+          - codebuild:CreateProject
+      - name: developer
+        description: >-
+          Day-to-day agent work. Ships new code against infrastructure that
+          already exists; cannot create roles, runtimes or memory. PassRole is
+          scoped to the execution role, so a deploy changes the code but never
+          what it may do.
+        trustedPrincipal: developers
+        permissions:
+          - s3:PutObject
+          - codebuild:StartBuild
+          - codebuild:BatchGetBuilds
+          - bedrock-agentcore:UpdateAgentRuntime
+          - bedrock-agentcore:GetAgentRuntime
+          - bedrock-agentcore:UpdateAgentRuntimeEndpoint
+          - bedrock-agentcore:GetAgentRuntimeEndpoint
+          - bedrock-agentcore:InvokeAgentRuntime
+          - logs:FilterLogEvents
+          - logs:GetLogEvents
+          - logs:DescribeLogStreams
+        scopedPassRole:
+          action: iam:PassRole
+          resource: role/AmazonBedrockAgentCoreSDKRuntime-*
+          why: Required by UpdateAgentRuntime. Scoped to the execution role only.
       - name: agent-runtime-execution
         perAgent: true
         trustedService: bedrock-agentcore

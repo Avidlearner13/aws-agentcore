@@ -19,10 +19,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "infra" / "control-flow.md"
-PHASES = ["build", "provision", "invoke", "teardown"]
+PHASES = ["provision", "release", "invoke", "teardown"]
 PHASE_TITLE = {
     "build": "Build — produce the image",
-    "provision": "Provision — create or update the runtime",
+    "provision": "Provision — OPERATOR, one-time infrastructure",
+    "release": "Release — DEVELOPER, the daily loop",
     "invoke": "Invoke — serve one request",
     "teardown": "Teardown",
 }

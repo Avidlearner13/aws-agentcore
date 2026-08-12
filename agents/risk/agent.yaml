@@ -76,120 +76,138 @@ spec:
   # here is over-permission.
   controls:
 
-    # --- build the image -----------------------------------------------------
-    build:
-      - step: 1-upload-source
-        produces: source.zip in the CodeBuild source bucket
-        principal: operator
-        actions: [s3:PutObject]
-        resource: s3://bedrock-agentcore-codebuild-sources-*/risk/
-        audit: none
-      - step: 2-start-build
-        produces: buildId (CodeBuild)
-        principal: operator
-        actions: [codebuild:StartBuild, codebuild:BatchGetBuilds]
-        resource: project/bedrock-agentcore-risk-builder
-        audit: cloudtrail
-      - step: 3-push-image
-        produces: image sha256 digest in ECR
-        principal: agent-build-execution
-        actions: [ecr:GetAuthorizationToken, ecr:InitiateLayerUpload,
-                  ecr:UploadLayerPart, ecr:CompleteLayerUpload, ecr:PutImage,
-                  s3:GetObject, logs:PutLogEvents]
-        resource: repository/bedrock-agentcore-risk
-        audit: cloudtrail
-
-    # --- provision the runtime ----------------------------------------------
+    # ---- OPERATOR: one-time infrastructure. The developer never needs these. ----
     provision:
-      - step: 4-create-execution-role
-        produces: execution role ARN
+      - step: 1-create-execution-role
         principal: operator
-        actions: [iam:CreateRole, iam:PutRolePolicy, iam:AttachRolePolicy, iam:GetRole]
+        actions: [iam:CreateRole, iam:PutRolePolicy, iam:AttachRolePolicy]
         resource: role/AmazonBedrockAgentCoreSDKRuntime-*
+        produces: the role the agent executes as
         audit: cloudtrail
-      - step: 5-create-memory
-        produces: memoryId + memoryArn
+        note: >-
+          Defining what the agent may do stays with the operator. The developer
+          only passes this role, never edits it.
+      - step: 2-create-memory
         principal: operator
         actions: [bedrock-agentcore:CreateMemory, bedrock-agentcore:GetMemory]
         resource: memory/risk_mem
+        produces: memoryId
         audit: cloudtrail
-      - step: 6-create-or-update-runtime
-        produces: agentRuntimeArn, agentRuntimeId, agentRuntimeVersion
+      - step: 3-create-ecr-and-build-project
         principal: operator
-        actions: [bedrock-agentcore:CreateAgentRuntime,
-                  bedrock-agentcore:UpdateAgentRuntime,
-                  bedrock-agentcore:GetAgentRuntime,
-                  bedrock-agentcore:ListAgentRuntimes]
+        actions: [ecr:CreateRepository, codebuild:CreateProject]
+        resource: [repository/bedrock-agentcore-risk, project/bedrock-agentcore-risk-builder]
+        produces: image repository and build project
+        audit: cloudtrail
+      - step: 4-create-runtime
+        principal: operator
+        actions: [bedrock-agentcore:CreateAgentRuntime]
         resource: runtime/risk
+        produces: agentRuntimeArn, version 1
         audit: cloudtrail
         alsoRequires:
           - action: iam:PassRole
             resource: role/AmazonBedrockAgentCoreSDKRuntime-*
             why: >-
-              The runtime runs AS the execution role. PassRole is the control
-              deciding who may hand that role to the service - the single most
-              privilege-sensitive grant in provisioning.
-      - step: 7-pin-endpoint
-        produces: endpoint targetVersion (pinned)
+              The runtime executes AS this role. Wildcard PassRole is an operator
+              grant; the developer gets it scoped to one role ARN.
+      - step: 5-grant-developer-access
         principal: operator
-        actions: [bedrock-agentcore:UpdateAgentRuntimeEndpoint,
-                  bedrock-agentcore:GetAgentRuntimeEndpoint,
-                  bedrock-agentcore:ListAgentRuntimeEndpoints]
-        resource: runtime-endpoint/risk/DEFAULT
+        actions: [iam:PutRolePolicy]
+        resource: role/developer
+        produces: the developer policy - steps 6 to 9
         audit: cloudtrail
-        note: Sets targetVersion. Unpinned, the endpoint floats onto new versions.
+        note: The handover point. After this the developer iterates unaided.
 
-    # --- serve a request -----------------------------------------------------
+    # ---- DEVELOPER: the daily loop. No new infrastructure. ----
+    release:
+      - step: 6-package-and-build
+        principal: developer
+        actions: [s3:PutObject, codebuild:StartBuild, codebuild:BatchGetBuilds]
+        resource: [s3://bedrock-agentcore-codebuild-sources-*/risk/,
+                   project/bedrock-agentcore-risk-builder]
+        produces: a new image digest in ECR
+        audit: cloudtrail
+      - step: 7-deploy-new-version
+        principal: developer
+        actions: [bedrock-agentcore:UpdateAgentRuntime, bedrock-agentcore:GetAgentRuntime]
+        resource: runtime/risk
+        produces: a new immutable runtime version
+        audit: cloudtrail
+        alsoRequires:
+          - action: iam:PassRole
+            resource: role/AmazonBedrockAgentCoreSDKRuntime-*
+            why: >-
+              UpdateAgentRuntime re-passes the execution role, so the developer
+              needs PassRole - scoped to this role ARN only. Deploy new code,
+              never change what the code may do.
+        failsAs: AccessDenied on PassRole if only UpdateAgentRuntime was granted.
+      - step: 8-pin-endpoint
+        principal: developer
+        actions: [bedrock-agentcore:UpdateAgentRuntimeEndpoint,
+                  bedrock-agentcore:GetAgentRuntimeEndpoint]
+        resource: runtime-endpoint/risk/DEFAULT
+        produces: endpoint targetVersion moved to the new version
+        audit: cloudtrail
+        failsAs: Left unset the endpoint floats and keeps serving an older version.
+      - step: 9-read-logs
+        principal: developer
+        actions: [logs:FilterLogEvents, logs:GetLogEvents, logs:DescribeLogStreams]
+        resource: log-group:/aws/bedrock-agentcore/runtimes/risk-*
+        produces: runtime logs for debugging
+        audit: none
+
+    # ---- RUNTIME: no human principal. ----
     invoke:
-      - step: 8-authorize-caller
-        produces: runtimeSessionId
+      - step: 10-authorize-caller
         principal: [console-instance, orchestrator]
         actions: [bedrock-agentcore:InvokeAgentRuntime]
         resource: runtime/risk
+        produces: runtimeSessionId
         audit: none
-        note: >-
-          Data-plane call. NOT recorded in CloudTrail management events, so this
-          hop has no audit trail by default - the reason it must be declared.
-      - step: 9-assume-execution-role
-        produces: temporary STS credentials for the runtime
+        note: Data-plane call - not in CloudTrail management events.
+      - step: 11-assume-execution-role
         principal: bedrock-agentcore.amazonaws.com
         actions: [sts:AssumeRole]
         resource: role/AmazonBedrockAgentCoreSDKRuntime-*
+        produces: temporary credentials in the container
         audit: cloudtrail
-        note: Trust policy, not an identity policy - the other half of PassRole.
-      - step: 11-session-memory
-        produces: session event records
+      - step: 12-memory-read
         principal: agent-runtime-execution
-        actions: [bedrock-agentcore:CreateEvent, bedrock-agentcore:ListEvents,
-                  bedrock-agentcore:RetrieveMemoryRecords]
+        actions: [bedrock-agentcore:ListEvents]
         resource: memory/risk_mem
+        produces: prior session events
         audit: none
-      - step: 12-model-invoke
-        produces: fraud score, risk level, flags with guideline citations
+      - step: 13-model-invoke
         principal: agent-runtime-execution
         actions: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
         resource: inference-profile/us.amazon.nova-pro-v1:0
+        produces: the model output for this agent's task
         audit: cloudtrail
         failsAs: >-
-          ResourceNotFoundException when model access is not granted for the
-          account, which surfaces at invoke time - never at provision time.
-      - step: 13-telemetry
-        produces: CloudWatch log stream + X-Ray trace
+          ResourceNotFoundException when model access is not granted - surfaces at
+          invoke time, never at provision time.
+      - step: 16-memory-write
         principal: agent-runtime-execution
-        actions: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents,
-                  xray:PutTraceSegments]
+        actions: [bedrock-agentcore:CreateEvent]
+        resource: memory/risk_mem
+        produces: session event records
+        audit: none
+      - step: 17-telemetry
+        principal: agent-runtime-execution
+        actions: [logs:CreateLogStream, logs:PutLogEvents, xray:PutTraceSegments]
         resource: log-group:/aws/bedrock-agentcore/runtimes/risk-*
+        produces: log stream + trace
         audit: none
 
-    # --- teardown ------------------------------------------------------------
+    # ---- OPERATOR: teardown is not a developer action. ----
     teardown:
-      - step: 14-delete
-        produces: nothing (resources removed)
+      - step: 18-delete
         principal: operator
-        actions: [bedrock-agentcore:DeleteAgentRuntime,
-                  bedrock-agentcore:DeleteMemory,
+        actions: [bedrock-agentcore:DeleteAgentRuntime, bedrock-agentcore:DeleteMemory,
                   ecr:DeleteRepository, iam:DeleteRole]
         resource: [runtime/risk, memory/risk_mem, repository/bedrock-agentcore-risk]
+        produces: nothing (resources removed)
         audit: cloudtrail
 
   console:

@@ -4,7 +4,7 @@
 apiVersion: agentcore/v1
 kind: ImportMap
 metadata:
-  capturedAt: 2026-08-11T03:10:58Z
+  capturedAt: 2026-08-12T03:01:25Z
   region: us-east-1
 spec:
   agentRuntimes:

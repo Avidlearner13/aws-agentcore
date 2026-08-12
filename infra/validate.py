@@ -226,7 +226,7 @@ def main() -> int:
                 seen_steps.add(step)
                 principals = entry.get("principal")
                 for pr in (principals if isinstance(principals, list) else [principals]):
-                    if (pr in known_roles or pr in manifests or pr == "operator"
+                    if (pr in known_roles or pr in manifests
                             or str(pr).endswith(".amazonaws.com")):
                         continue
                     err(f"{name}: control step {step!r} names unknown principal {pr!r} "

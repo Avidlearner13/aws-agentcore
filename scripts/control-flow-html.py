@@ -18,10 +18,10 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "infra" / "control-flow.html"
 PHASES = [
-    ("build", "Build", "Produce the container image"),
-    ("provision", "Provision", "Create or update the runtime"),
-    ("invoke", "Invoke", "Serve one request"),
-    ("teardown", "Teardown", "Remove the resources"),
+    ("provision", "Provision - operator", "Infra team, one-time: roles, runtime, memory, registries"),
+    ("release", "Release - developer", "The daily loop: new code against existing infrastructure"),
+    ("invoke", "Invoke - runtime", "No human principal; the workload's own identities"),
+    ("teardown", "Teardown - operator", "Remove the resources"),
 ]
 
 

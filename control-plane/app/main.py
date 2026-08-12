@@ -83,8 +83,8 @@ def _load_registry() -> tuple[dict, dict]:
 
 AGENTS, ORCHESTRATORS = _load_registry()
 
-# Fallback for images built before infra/ was copied in. Keeps an already-deployed
-# container working; a rebuilt image reads the manifests above instead.
+# Fallback for images built before the agent manifests were copied in. Keeps an
+# already-deployed container working; a rebuilt image reads the manifests above instead.
 if not AGENTS:
     AGENTS = {
         "intake": {"framework": "gcp-adk", "role": "Intake & Document Intelligence",

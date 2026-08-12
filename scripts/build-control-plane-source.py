@@ -31,7 +31,7 @@ ROOT_FILES = {
 }
 
 # Whole trees, minus SKIP_DIRS.
-TREES = ["control-plane/app", "samples", "policies", "infra"]
+TREES = ["control-plane/app", "samples", "policies"]
 
 # From agents/, take only these filenames - never code, never venvs.
 AGENT_FILES = ["agent.yaml", "agent-card.yaml"]

@@ -20,7 +20,6 @@ COPY policies ./policies
 # scripts/build-control-plane-source.py, which includes only the manifest and
 # card files from agents/ - never the agent code or its venvs.
 COPY agents ./agents
-COPY infra ./infra
 
 # main.py at /srv/control-plane/app/main.py → ROOT=/srv, so /srv/samples resolves correctly.
 EXPOSE 8080
